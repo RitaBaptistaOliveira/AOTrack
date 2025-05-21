@@ -1,0 +1,36 @@
+.dashboardGrid {
+  display: grid;
+  gap: 1rem;
+  height: 100%;
+
+  grid-template-columns: 1fr;
+  grid-template-areas:
+    "a"
+    "b"
+    "c"
+    "d"
+    "e"
+    "f";
+}
+
+@media (min-width: 768px) {
+  .simpleGrid {
+    grid-template-columns: 3fr 2fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "a b"
+      "a c"
+      "de f";
+  }
+}
+
+/* Large screens override for simple layout */
+@media (min-width: 768px) {
+  .overviewGrid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    grid-template-areas:
+      "a b"
+      "c d";
+  }
+}
