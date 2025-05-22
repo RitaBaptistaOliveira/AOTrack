@@ -12,10 +12,10 @@ export default function Pixels() {
       <GridItem area="c">E (Right Middle)</GridItem>
 
       {isLargeScreen ? (
-        <GridItem area="de" className="flex gap-4">
-          <div className="flex-1">B (Left Bottom Left)</div>
-          <div className="flex-1">C (Left Bottom Right)</div>
-        </GridItem>
+        <div style={{ gridArea: "de" }} className={`flex gap-4 rounded`}>
+          <GridItem area="d" className='flex-1'>B (Left Bottom Left)</GridItem>
+          <GridItem area="e" className='flex-1'>C (Left Bottom Right)</GridItem>
+        </div>
       ) : (
         <>
           <GridItem area="d">B (Left Bottom Left)</GridItem>

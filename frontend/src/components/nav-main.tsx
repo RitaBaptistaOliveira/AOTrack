@@ -1,6 +1,6 @@
 "use client"
 
-import {NavLink} from "react-router-dom"
+import { NavLink } from "react-router-dom"
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -15,15 +15,16 @@ export function NavMain() {
       {routes.filter(route => route.navVisible).map((route) => (
         <SidebarMenuItem key={route.title}>
           <NavLink to={`/dashboard/${route.path}`} end>
-              {({ isActive }) => (
-                <SidebarMenuButton asChild isActive={isActive}>
-                  <a>
-                    <route.icon />
-                    <span>{route.title}</span>
-                  </a>
-                </SidebarMenuButton>
-              )}
-            </NavLink>
+            {({ isActive }) => (
+              <SidebarMenuButton asChild isActive={isActive}>
+                <div>
+                  <route.icon />
+                  <span>{route.title}</span>
+                </div>
+
+              </SidebarMenuButton>
+            )}
+          </NavLink>
         </SidebarMenuItem>
       ))}
     </SidebarMenu>
