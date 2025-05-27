@@ -47,3 +47,11 @@ export const routes = [
     navVisible: true,
   },
 ]
+
+export const ROUTE_PATHS = {
+  welcome: "/welcome",
+  overview: "dashboard/overview",
+  pixels: "dashboard/pixels",
+  measurements: "dashboard/measurements",
+  commands: "dashboard/commands",
+};

@@ -118,3 +118,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes dash-move {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 40px 0;
+  }
+}
+
+.animate-dash-move {
+  animation: dash-move 1.5s linear infinite;
+}
