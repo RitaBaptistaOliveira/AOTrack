@@ -13,21 +13,50 @@ import { useAoSession } from "@/contexts/ao_session_context";
 export default function Welcome() {
 
     const { uploadFile } = useAoHelper();
-    const { fileName, fileSize, metadataSummary} = useAoSession();
+    const { fileName, fileSize, metadataSummary } = useAoSession();
+    const navigate = useNavigate();
 
     const [activeTab, setActiveTab] = useState("local")
     const [fileUploaded, setFileUploaded] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const [dragging, setDragging] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
-    const navigate = useNavigate();
     const uploaderRef = useRef<HTMLDivElement | null>(null);
+    const handleDrop = async (e: React.DragEvent<HTMLLabelElement>) => {
+        e.preventDefault();
+        setDragging(false);
+        const selected = e.dataTransfer.files?.[0];
+        if (selected && selected.name.endsWith(".fits")) {
+            setIsUploading(true);
+            try {
+                await uploadFile(selected);
+                setFileUploaded(true);
+            } catch (err) {
+                alert("Upload failed.");
+            } finally {
+                setIsUploading(false);
+            }
+        } else {
+            alert("Only .fits files are accepted.");
+        }
+    };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const selected = e.target.files?.[0];
         if (selected && selected.name.endsWith(".fits")) {
-            uploadFile(selected)
-            setFileUploaded(true);
+            setIsUploading(true);
+            setUploadError(null);
+            try {
+                await uploadFile(selected);
+                setFileUploaded(true);
+            } catch (err) {
+                setUploadError("Upload failed. Please try again. Error " + (err instanceof Error ? `${err.name}: ${err.message}` : ""));
+            } finally {
+                setIsUploading(false);
+            }
         } else {
-            alert("Only .fits files are accepted.");
+            setUploadError("Only .fits files are accepted.");
         }
     };
 
@@ -123,25 +152,49 @@ export default function Welcome() {
                                     value="local"
                                     className="flex-1 w-full flex p-4 flex-col overflow-auto"
                                 >
-                                    {!fileUploaded? (
-                                        <label
-                                            htmlFor="file-upload"
-                                            className="w-full flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-400 rounded-xl text-center cursor-pointer hover:bg-white/5 transition-colors"
-                                        >
-                                            <UploadCloud className="h-12 w-12 mb-4 text-white" />
-                                            <p className="text-white text-sm">Drag and drop .fits file here</p>
-                                            <p className="text-white text-sm">or</p>
-                                            <p className="text-white text-sm">Click to Upload</p>
-                                            <input
-                                                id="file-upload"
-                                                type="file"
-                                                accept=".fits"
-                                                className="hidden"
-                                                onChange={handleFileChange}
-                                            />
-                                        </label>
-                                    ) : ( 
-                                        metadataSummary &&  (
+                                    {!fileUploaded ? (
+                                        isUploading ? (
+                                            <div className="flex flex-col items-center justify-center flex-1 gap-4">
+                                                <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                                <p className="text-sm text-white">Uploading...</p>
+                                            </div>
+                                        ) : (
+                                            < label
+                                                htmlFor="file-upload"
+                                                onDragOver={(e) => {
+                                                    e.preventDefault();
+                                                    setDragging(true);
+                                                }}
+                                                onDragLeave={(e) => {
+                                                    e.preventDefault();
+                                                    setDragging(false);
+                                                }}
+                                                onDrop={handleDrop}
+                                                className={`w-full flex-1 flex flex-col border-2 border-dashed rounded-xl text-center cursor-pointer transition-colors ${dragging ? "border-blue-400 bg-white/10" : "border-gray-400 hover:bg-white/5"}`}
+                                            >
+                                                <div className="flex flex-col items-center justify-center flex-grow">
+                                                    <UploadCloud className="h-12 w-12 mb-4 text-white" />
+                                                    <p className="text-white text-sm">Drag and drop</p>
+                                                    <p className="text-white text-sm">or</p>
+                                                    <p className="text-white text-sm">Click to upload</p>
+                                                    <input
+                                                        id="file-upload"
+                                                        type="file"
+                                                        accept=".fits"
+                                                        className="hidden"
+                                                        onChange={handleFileChange}
+                                                    />
+                                                </div>
+
+                                                <div className="mt-auto min-h-[1.5rem]">
+                                                    {uploadError && (
+                                                        <p className="text-red-400 text-center font-semibold">{uploadError}</p>
+                                                    )}
+                                                </div>
+                                            </label>
+                                        )
+                                    ) : (
+                                        metadataSummary && (
                                             <div className="space-y-4 w-full flex flex-col justify-between flex-1">
                                                 <table className="w-full text-sm text-white border-separate border-spacing-y-2">
                                                     <tbody>
@@ -180,15 +233,15 @@ export default function Welcome() {
                                                     </span>
                                                 </p>
 
-                                                <div className="flex gap-2 w-full mt-auto">
+                                                <div className="grid w-full grid-cols-2 relative gap-4">
                                                     {/* Buttons fill width equally */}
-                                                    <Button onClick={() => navigate(ROUTE_PATHS.overview)} className="flex-1">
+                                                    <Button onClick={() => navigate(ROUTE_PATHS.overview)} className="flex-1 text-accent-foreground bg-accent hover:bg-accent/70">
                                                         Proceed
                                                     </Button>
                                                     <label htmlFor="file-upload" className="flex-1">
                                                         <Button
                                                             variant="outline"
-                                                            className="w-full"
+                                                            className="w-full bg-transparent hover:text-white hover:bg-white/10 border-white/30 hover:border-white/50"
                                                             onClick={() => fileInputRef.current?.click()}
                                                         >
                                                             Change File
@@ -222,6 +275,6 @@ export default function Welcome() {
                     </Card>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
