@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .session.actions import delete_expired_sessions
-from .routes import upload
+from .routes import upload, pixel
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,6 +34,8 @@ app.add_middleware(
 )
 
 app.include_router(upload.router)
+
+app.include_router(pixel.router)
 
 @app.get("/")
 def read_root():

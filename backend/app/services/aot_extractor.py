@@ -1,15 +1,12 @@
 from dataclasses import asdict
 from datetime import datetime
 import gc
-# import time
-
 import aotpy
+from numpy import ndarray
 
 def extract_metadata_from_file(path: str) -> dict:
-    # start = time.time()
     try:
         system = aotpy.AOSystem.read_from_file(path)
-        # print(f"Load AOSystem: {time.time() - start:.2f} seconds after start")
     except Exception as e:
         raise RuntimeError(f"Failed to read AOSystem from file: {e}")
     
@@ -82,8 +79,20 @@ def extract_metadata_from_file(path: str) -> dict:
             for src in system.sources
         ],
     }
-    # print(f"Create metadata: {time.time() - start:.2f} seconds after start")
     del system
     gc.collect()
-    # print(f"GC: {time.time() - start:.2f} seconds after start")
     return metadata
+
+# TODO: better error handling and missing data checks
+def extract_pixel_intensities(path: str) -> ndarray:
+    
+    try:
+        system = aotpy.AOSystem.read_from_file(path)
+    except Exception as e:
+        raise RuntimeError(f"Failed to read AOSystem from file: {e}")
+
+
+    frames = system.wavefront_sensors[0].detector.pixel_intensities.data if system.wavefront_sensors else None
+    del system
+    gc.collect()
+    return frames
