@@ -1,4 +1,4 @@
-import DashboardGrid, { GridItem } from '@/components/dashboard-grid/dashboard-grid'
+import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dashboard-grid'
 
 export default function Overview() {
 

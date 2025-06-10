@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { BreadcrumbNav } from "./components/breadcrumb-nav"
+import { BreadcrumbNav } from "@/components/navigation/breadcrumb-nav"
 
 export default function Layout() {
   return (

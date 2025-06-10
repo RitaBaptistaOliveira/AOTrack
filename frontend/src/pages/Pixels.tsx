@@ -1,5 +1,5 @@
-import DashboardGrid from '@/components/dashboard-grid/dashboard-grid'
-import { GridItem } from '@/components/dashboard-grid/grid-item'
+import DashboardGrid from '@/components/layout/dashboard-grid/dashboard-grid'
+import { GridItem } from '@/components/layout/dashboard-grid/grid-item'
 import { useMediaQuery } from 'react-responsive'
 
 export default function Pixels() {

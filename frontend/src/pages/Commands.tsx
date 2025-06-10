@@ -1,4 +1,4 @@
-import DashboardGrid, { GridItem } from '@/components/dashboard-grid/dashboard-grid'
+import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dashboard-grid'
 import { useMediaQuery } from 'react-responsive'
 
 export default function Commands() {
