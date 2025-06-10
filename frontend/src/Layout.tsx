@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom"
-import { AppSidebar } from "@/components/app-sidebar"
+import { AppSidebar } from "@/components/navigation/app-sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
   SidebarInset,
@@ -22,7 +22,7 @@ export default function Layout() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="flex flex-col h-screen overflow-hidden">
         <header className="bg-card flex shrink-0 items-center shadow-sm justify-between px-4 py-2 transition-[width,height] ease-linear">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
@@ -68,7 +68,7 @@ export default function Layout() {
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col gap-4 p-4">
+        <div className="flex flex-1 flex-col gap-4 p-4 min-h-0 overflow-hidden">
           <Outlet />
         </div>
       </SidebarInset>

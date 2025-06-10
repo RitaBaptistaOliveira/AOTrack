@@ -14,21 +14,18 @@
 }
 
 @media (min-width: 768px) {
-  .simpleGrid {
+  .dashboardGrid.simpleGrid {
     grid-template-columns: 3fr 2fr;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       "a b"
       "a c"
       "de f";
   }
-}
 
-/* Large screens override for simple layout */
-@media (min-width: 768px) {
-  .overviewGrid {
+  .dashboardGrid.overviewGrid {
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto auto;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       "a b"
       "c d";
