@@ -7,8 +7,8 @@ import { ROUTE_PATHS } from "../routes";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { BackgroundParticles } from "@/components/background-particles";
-import { useAoHelper } from "@/hooks/use_ao_helper";
-import { useAoSession } from "@/contexts/ao_session_context";
+import { useAoHelper } from "@/hooks/use-ao-helper";
+import { useAoSession } from "@/contexts/ao-session-context";
 
 export default function Welcome() {
 

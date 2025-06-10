@@ -2,7 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
 import Layout from "./components/layout/page-layout"
 import { routes } from "./routes"
 import Welcome from "./pages/Welcome"
-import { AoSessionProvider } from "./contexts/ao_session_context"
+import { AoSessionProvider } from "./contexts/ao-session-context"
 
 export default function App() {
   return (

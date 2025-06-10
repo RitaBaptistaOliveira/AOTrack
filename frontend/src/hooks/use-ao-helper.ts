@@ -1,5 +1,5 @@
 import type { MetadataSummary } from "../types/metadata_summary";
-import { useAoSession } from "../contexts/ao_session_context";
+import { useAoSession } from "../contexts/ao-session-context";
 
 export function useAoHelper() {
 
