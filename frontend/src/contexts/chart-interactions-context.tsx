@@ -1,7 +1,7 @@
 import type { ColorMap, IntervalType, ScaleType } from "@/types/visualization";
 import React, { createContext, useContext, useState } from "react";
 
-type Point = { row: number; col: number };
+type Point = { x: number; y: number };
 
 interface ChartInteractionContextType {
     currentFrame: number;
@@ -9,9 +9,6 @@ interface ChartInteractionContextType {
 
     selectedPoint: Point | null;
     setSelectedPoint: (point: Point | null) => void;
-
-    hoveredPoint: Point | null;
-    setHoveredPoint: (point: Point | null) => void;
 
     colorMap: ColorMap;
     setColorMap: (cm: ColorMap) => void;
@@ -28,7 +25,6 @@ const ChartInteractionContext = createContext<ChartInteractionContextType | unde
 export const ChartInteractionProvider = ({ children }: { children: React.ReactNode }) => {
     const [currentFrame, setCurrentFrame] = useState(0);
     const [selectedPoint, setSelectedPoint] = useState<Point | null>(null);
-    const [hoveredPoint, setHoveredPoint] = useState<Point | null>(null);
 
     const [colorMap, setColorMap] = useState<ColorMap>("viridis");
     const [scaleType, setScaleType] = useState<ScaleType>("linear");
@@ -41,8 +37,6 @@ export const ChartInteractionProvider = ({ children }: { children: React.ReactNo
                 setCurrentFrame,
                 selectedPoint,
                 setSelectedPoint,
-                hoveredPoint,
-                setHoveredPoint,
                 colorMap,
                 setColorMap,
                 scaleType,
