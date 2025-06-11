@@ -1,3 +1,4 @@
+import TestCanvasChart from '@/components/charts/test'
 import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dashboard-grid'
 import { ChartInteractionProvider } from '@/contexts/chart-interactions-context'
 import { useMediaQuery } from 'react-responsive'
@@ -8,7 +9,9 @@ export default function Pixels() {
   return (
     <ChartInteractionProvider>
       <DashboardGrid variant="simple">
-        <GridItem area="a">A (Left Top)</GridItem>
+        <GridItem area="a">
+          <TestCanvasChart/>
+        </GridItem>
         <GridItem area="b">D (Right Top)</GridItem>
         <GridItem area="c">E (Right Middle)</GridItem>
 

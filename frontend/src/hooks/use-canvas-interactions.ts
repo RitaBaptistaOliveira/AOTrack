@@ -115,30 +115,11 @@ export function useCanvasInteractions() {
     link.click()
   }, [])
 
-
-
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const resize = () => {
-      const parent = canvas.parentElement
-      if (!parent) return
-
-      const dpr = window.devicePixelRatio || 1
-      const width = parent.clientWidth
-      const height = parent.clientHeight
-
-      canvas.width = width * dpr
-      canvas.height = height * dpr
-      canvas.style.width = `${width}px`
-      canvas.style.height = `${height}px`
-
-      const ctx = canvas.getContext("2d")
-      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0) // scale to device pixel ratio
-
-      setCanvasSize({ width, height })
-    }
+    const resize = () => useResizeCanvas(canvas, setCanvasSize)
 
     resize()
     const observer = new ResizeObserver(resize)
@@ -169,4 +150,23 @@ export function useCanvasInteractions() {
     handleMouseLeave,
     handleMouseWheel
   }
+}
+
+export function useResizeCanvas(canvas: HTMLCanvasElement, setCanvasSize?: (size: { width: number; height: number }) => void) {
+  const parent = canvas.parentElement
+  if (!parent) return
+
+  const dpr = window.devicePixelRatio || 1
+  const width = parent.clientWidth
+  const height = parent.clientHeight
+
+  canvas.width = width * dpr
+  canvas.height = height * dpr
+  canvas.style.width = `${width}px`
+  canvas.style.height = `${height}px`
+
+  const ctx = canvas.getContext("2d")
+  if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+  if (setCanvasSize) setCanvasSize({ width, height })
 }
