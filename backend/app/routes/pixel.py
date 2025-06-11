@@ -25,14 +25,14 @@ async def get_pixel_intensities(request: Request):
         logging.error(f"Error extracting pixel intensities: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to extract pixel intensities")
 
-@router.post("/pixel/apply-changes")
-async def apply_pixel_changes(request: Request):
+@router.post("/pixel/apply-frame-changes")
+async def apply_frame_changes(request: Request):
     form = await request.form()
-    image_json = form.get("data")
-    if not image_json:
-        raise HTTPException(status_code=400, detail="Image parameter is required")
+    frameData = form.get("data")
+    if not frameData:
+        raise HTTPException(status_code=400, detail="Frame data parameter is required")
     try:
-        image = np.array(json.loads(image_json))
+        image = np.array(json.loads(frameData))
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid image data format")
 

@@ -1,80 +1,113 @@
 import type { MetadataSummary } from "../types/metadata_summary";
 import { useAoSession } from "../contexts/ao-session-context";
+import { useChartInteraction } from "@/contexts/chart-interactions-context";
 
 export function useAoHelper() {
 
-     const {setSession} = useAoSession();
+  const { setSession } = useAoSession();
+  const { setCurrentFrame, setIntervalType, setScaleType, currentFrame, intervalType, scaleType } = useChartInteraction();
 
-    const uploadFile = async (selectedFile: File) => {
-        if (!selectedFile.name.endsWith(".fits")) {
-            throw new Error("Only .fits files are allowed");
-        }
-        const formData = new FormData();
-        formData.append("file", selectedFile);
-
-        try {
-            const response = await fetch("http://localhost:8000/upload", {
-                method: "POST",
-                body: formData,
-                credentials: "include",
-            });
-
-            if (!response.ok) throw new Error("Upload failed");
-
-            const data = await response.json();
-            if (!data.metadata) {
-                throw new Error("No metadata returned from server");
-            }
-            setSession(selectedFile.name, selectedFile.size, parseMetadata(data.metadata));
-        } catch (err) {
-            console.error("Upload error:", err);
-        }
-    };
-
-    const fetchSession = async () => {
-        try {
-            const response = await fetch("http://localhost:8000/session", {
-                method: "GET",
-                credentials: "include",
-            });
-
-            if (!response.ok) throw new Error("Session fetch failed");
-
-            const data = await response.json();
-            return data.active;
-
-        } catch (err) {
-            console.error("Fetch session error:", err);
-        }
+  const uploadFile = async (selectedFile: File) => {
+    if (!selectedFile.name.endsWith(".fits")) {
+      throw new Error("Only .fits files are allowed");
     }
+    const formData = new FormData();
+    formData.append("file", selectedFile);
 
-    // const fetchMetadata = async () => {
-    //     const active = fetchSession();
-    //     if (!active) {
-    //         console.warn("No active session found");
-    //         return;
-    //     }
-    //     else {
-    //         try {
-    //             const response = await fetch(`http://localhost:8000/metadata/${file.name}`, {
-    //                 credentials: "include",
-    //             });
+    try {
+      const response = await fetch("http://localhost:8000/upload", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
 
-    //             if (!response.ok) throw new Error("Failed to fetch metadata");
+      if (!response.ok) throw new Error("Upload failed");
 
-    //             const data = await response.json();
-    //             setMetadata(data);
-    //         } catch (err) {
-    //             console.error("Fetch metadata error:", err);
-    //         }
-    //     }
+      const data = await response.json();
+      if (!data.metadata) {
+        throw new Error("No metadata returned from server");
+      }
+      setSession(selectedFile.name, selectedFile.size, parseMetadata(data.metadata));
+    } catch (err) {
+      console.error("Upload error:", err);
+    }
+  };
 
-    // };
+  const fetchSession = async () => {
+    try {
+      const response = await fetch("http://localhost:8000/session", {
+        method: "GET",
+        credentials: "include",
+      });
 
-    return {
-        uploadFile,
-        fetchSession,
-    };
+      if (!response.ok) throw new Error("Session fetch failed");
+
+      const data = await response.json();
+      return data.active;
+
+    } catch (err) {
+      console.error("Fetch session error:", err);
+    }
+  }
+
+  const fetchFrameChanges = async (frameData: number[][]) => {
+    const formData = new FormData();
+    formData.append("data", JSON.stringify(frameData));
+    formData.append("interval_type", intervalType);
+    formData.append("scale_type", scaleType);
+
+    try {
+      const response = await fetch("http://localhost:8000/pixel/apply-frame-changes", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      if (!response.ok) throw new Error("Invalid response from server");
+
+      const data = await response.json();
+      const modifiedFrame = data.data;
+
+      if (!Array.isArray(modifiedFrame)) {
+        throw new Error("Invalid frame data format returned from server");
+      }
+
+      return modifiedFrame;
+    } catch (err) {
+      console.error("Scale or Interval error when trying to apply to frame:", err);
+    }
+    return frameData; // Return original frame if error occurs
+  };
+  
+
+  // const fetchMetadata = async () => {
+  //     const active = fetchSession();
+  //     if (!active) {
+  //         console.warn("No active session found");
+  //         return;
+  //     }
+  //     else {
+  //         try {
+  //             const response = await fetch(`http://localhost:8000/metadata/${file.name}`, {
+  //                 credentials: "include",
+  //             });
+
+  //             if (!response.ok) throw new Error("Failed to fetch metadata");
+
+  //             const data = await response.json();
+  //             setMetadata(data);
+  //         } catch (err) {
+  //             console.error("Fetch metadata error:", err);
+  //         }
+  //     }
+
+  // };
+
+  return {
+    uploadFile,
+    fetchSession,
+    fetchFrameChanges,
+  };
 }
 
 function parseMetadata(raw: any): MetadataSummary {
@@ -94,9 +127,9 @@ function parseMetadata(raw: any): MetadataSummary {
       uid: ap.uid,
       time: ap.time
         ? {
-            timestamps: ap.time.timestamps,
-            frame_numbers: ap.time.frame_numbers,
-          }
+          timestamps: ap.time.timestamps,
+          frame_numbers: ap.time.frame_numbers,
+        }
         : null,
     })),
 
@@ -123,9 +156,9 @@ function parseMetadata(raw: any): MetadataSummary {
       closed: loop.closed,
       time: loop.time
         ? {
-            timestamps: loop.time.timestamps,
-            frame_numbers: loop.time.frame_numbers,
-          }
+          timestamps: loop.time.timestamps,
+          frame_numbers: loop.time.frame_numbers,
+        }
         : null,
       framerate: loop.framerate,
       delay: loop.delay,

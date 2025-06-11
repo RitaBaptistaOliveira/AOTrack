@@ -4,24 +4,28 @@ import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "l
 import { useCallback, useEffect, useState } from "react"
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
 
-export default function FrameControls(totalFrames: number) {
+interface FrameSliderProps {
+  totalFrames: number;
+}
+
+export default function FrameSlider({ totalFrames }: FrameSliderProps) {
   const { currentFrame, setCurrentFrame } = useChartInteraction()
 
   const [isEditing, setIsEditing] = useState(false)
-  const [inputValue, setInputValue] = useState((currentFrame).toString())
+  const [inputValue, setInputValue] = useState((currentFrame + 1).toString())
   const [isPlaying, setIsPlaying] = useState(false);
 
   const goToFrame = useCallback((frame: number) => {
     if (totalFrames <= 0) return;
     const frameNum = Math.max(0, Math.min(frame, totalFrames - 1))
     setCurrentFrame(frameNum)
-    setInputValue(frameNum.toString())
+    setInputValue((frameNum + 1).toString())
   }, [totalFrames, setCurrentFrame])
 
   const handleInputSubmit = useCallback(() => {
     const num = parseInt(inputValue)
-    if (!isNaN(num)) goToFrame(num)
-    else setInputValue(currentFrame.toString());
+    if (!isNaN(num)) goToFrame(num - 1)
+    else setInputValue((currentFrame + 1).toString());
     setIsEditing(false)
   }, [inputValue, currentFrame, goToFrame])
 
@@ -89,17 +93,17 @@ export default function FrameControls(totalFrames: number) {
                 }}
                 className="h-8 w-8 flex-auto text-center border rounded text-sm"
                 autoFocus
-                min={0}
-                max={totalFrames - 1}
+                min={1}
+                max={totalFrames}
               />
-              <div>/ {totalFrames - 1}</div>
+              <div>/ {totalFrames}</div>
             </div>
           ) : (
             <div className="w-full flex flex-row items-center justify-center gap-1">
               <Button variant="default" size="icon" onClick={() => setIsEditing(true)} className="h-8 w-8 border font-normal">
-                {currentFrame}
+                {currentFrame + 1}
               </Button>
-              <div>/ {totalFrames - 1}</div>
+              <div>/ {totalFrames}</div>
             </div>
           )}
         </div>

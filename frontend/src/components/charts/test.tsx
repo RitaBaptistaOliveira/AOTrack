@@ -9,9 +9,10 @@ type Data = {
 }
 
 // Simple draw function that draws a square
-function draw(ctx: CanvasRenderingContext2D, drawArgs: DrawArgs) {
+function draw(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, drawArgs?: DrawArgs) {
     ctx.fillStyle = "lightblue"
-    ctx.fillRect(50, 50, drawArgs.squareSize, drawArgs.squareSize)
+    const size = drawArgs?.squareSize ?? 100
+    ctx.fillRect(50, 50, size, size)
 }
 
 // When clicking, just return some dummy data if inside the square

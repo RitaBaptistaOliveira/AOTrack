@@ -6,8 +6,8 @@ import { useChartInteraction, } from "@/contexts/chart-interactions-context"
 type CanvasChartProps<TDrawArgs, TData> = {
   // Function to draw on the canvas
   // It receives the canvas context and any additional arguments (scale, interval, colorMap, etc.)
-  draw: (ctx: CanvasRenderingContext2D, drawArgs: TDrawArgs) => void
-  drawArgs: TDrawArgs
+  draw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, drawArgs?: TDrawArgs) => void
+  drawArgs?: TDrawArgs
 
   // Maps a canvas point to data. Needed for click interactions and hover tooltips.
   mapCanvasToData?: (pt: Point) => TData | null
@@ -84,7 +84,7 @@ export default function CanvasChart<TDrawArgs, TData>({ draw, drawArgs, mapCanva
     ctx.translate(offset.x, offset.y)
     ctx.scale(zoom, zoom)
 
-    draw(ctx, drawArgs)
+    draw(ctx, canvas, drawArgs)
 
     ctx.restore()
   }, [baseCanvasRef, zoom, offset, canvasSize, draw, drawArgs])

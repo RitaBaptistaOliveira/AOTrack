@@ -1,5 +1,6 @@
 import type { ColorMap, IntervalType, ScaleType } from "@/types/visualization";
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import * as d3 from "d3";
 
 type Point = { x: number; y: number };
 
@@ -18,9 +19,24 @@ interface ChartInteractionContextType {
 
     intervalType: IntervalType;
     setIntervalType: (it: IntervalType) => void;
+
+    interpolator: (t: number) => string;
 }
 
 const ChartInteractionContext = createContext<ChartInteractionContextType | undefined>(undefined);
+
+const getInterpolator = (colorMap: ColorMap) => {
+    switch (colorMap) {
+        case "inferno": return d3.interpolateInferno;
+        case "greys": return d3.interpolateGreys;
+        case "blues": return d3.interpolateBlues;
+        case "reds": return d3.interpolateReds;
+        case "greens": return d3.interpolateGreens;
+        case "rainbow": return d3.interpolateRainbow;
+        case "viridis":
+        default: return d3.interpolateViridis;
+    }
+};
 
 export const ChartInteractionProvider = ({ children }: { children: React.ReactNode }) => {
     const [currentFrame, setCurrentFrame] = useState(0);
@@ -30,6 +46,13 @@ export const ChartInteractionProvider = ({ children }: { children: React.ReactNo
     const [scaleType, setScaleType] = useState<ScaleType>("linear");
     const [intervalType, setIntervalType] = useState<IntervalType>("minmax");
 
+    const [interpolator, setInterpolator] = useState(() => getInterpolator(colorMap));
+
+
+    useEffect(() => {
+        setInterpolator(getInterpolator(colorMap));
+    }, [colorMap]);
+    
     return (
         <ChartInteractionContext.Provider
             value={{
@@ -43,6 +66,7 @@ export const ChartInteractionProvider = ({ children }: { children: React.ReactNo
                 setScaleType,
                 intervalType,
                 setIntervalType,
+                interpolator
             }}>
             {children}
         </ChartInteractionContext.Provider>
