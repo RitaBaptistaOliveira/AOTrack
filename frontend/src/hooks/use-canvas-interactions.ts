@@ -52,13 +52,11 @@ export function useCanvasInteractions() {
   }, [mode])
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!canvasRef.current) return
+    if (!isDragging || !dragStart || !canvasRef.current) return
     const rect = canvasRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
     setHoverPos({ x, y })
-
-    if (!isDragging || !dragStart) return
 
     const dx = x - dragStart.x
     const dy = y - dragStart.y

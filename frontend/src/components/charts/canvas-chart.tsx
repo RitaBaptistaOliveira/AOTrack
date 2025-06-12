@@ -1,9 +1,12 @@
-import { useCanvasInteractions, useResizeCanvas, type Point } from "@/hooks/use-canvas-interactions"
+"use client"
+
+import type { useCanvasInteractions,  Point } from "@/hooks/use-canvas-interactions"
 import { useEffect, useRef, useState } from "react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useChartInteraction, } from "@/contexts/chart-interactions-context"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
 
 type CanvasChartProps<TDrawArgs, TData> = {
+  interaction: ReturnType<typeof useCanvasInteractions>
   // Function to draw on the canvas
   // It receives the canvas context and any additional arguments (scale, interval, colorMap, etc.)
   draw: (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, drawArgs?: TDrawArgs) => void
@@ -13,7 +16,7 @@ type CanvasChartProps<TDrawArgs, TData> = {
   mapCanvasToData?: (pt: Point) => TData | null
 
   // Function to get the hovered data (might differ because of snapping, etc.)
-  getHoveredDataAt?: (pt: Point) => TData | null,
+  getHoveredDataAt?: (pt: Point) => TData | null
 
   // Functions to draw selected
   drawSelected?: (ctx: CanvasRenderingContext2D, data: TData) => void
@@ -22,7 +25,9 @@ type CanvasChartProps<TDrawArgs, TData> = {
   formatTooltip?: (data: TData | null) => string
 }
 
-export default function CanvasChart<TDrawArgs, TData>({ draw, drawArgs, mapCanvasToData, getHoveredDataAt, drawSelected, formatTooltip }: CanvasChartProps<TDrawArgs, TData>) {
+export default function CanvasChart<TDrawArgs, TData>({ interaction, draw, drawArgs, mapCanvasToData, getHoveredDataAt, drawSelected, formatTooltip }: CanvasChartProps<TDrawArgs, TData>) {
+  console.log(interaction)
+  
   const {
     canvasRef,
     zoom,
@@ -36,81 +41,70 @@ export default function CanvasChart<TDrawArgs, TData>({ draw, drawArgs, mapCanva
     handleMouseUp,
     handleMouseLeave,
     handleMouseWheel
-  } = useCanvasInteractions()
+
+  } = interaction
 
   const { setSelectedPoint } = useChartInteraction()
   const [clickedData, setClickedData] = useState<TData | null>(null)
   const [hoveredTooltip, setHoveredTooltip] = useState<string | null>(null)
-  const baseCanvasRef = useRef<HTMLCanvasElement>(null) // Base canvas for drawing the chart, avoid re-rendering
+  const bufferCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Effect to handle click interactions
   // This effect runs whenever the click position changes, maps the click position to data, and sets the selected point
   useEffect(() => {
+    console.log("Effect to handle click interactions")
+
     if (!clickPosition || !mapCanvasToData) return
 
     const pointTransformed = {
       x: (clickPosition.x - offset.x) / zoom,
       y: (clickPosition.y - offset.y) / zoom,
     }
-    setSelectedPoint(pointTransformed)
-
-    setClickedData(mapCanvasToData(pointTransformed))
-    if (clickedData === null) {
+    const data = mapCanvasToData(pointTransformed)
+    setClickedData(data)
+    if (data === null) {
       console.log("No data found at click position:", pointTransformed)
-    }
+    } else setSelectedPoint(pointTransformed)
   }, [clickPosition, mapCanvasToData, offset, zoom])
 
-  // Effect to resize the canvas
-  // This effect runs whenever the canvas size changes, ensuring the canvas is resized correctly
-  useEffect(() => {
-    const canvas = baseCanvasRef.current
-    if (!canvas) return
-
-    useResizeCanvas(canvas)
-  }, [canvasSize])
-
-  // Effect to render background chart
+  // Effect to render chart
   // This effect runs whenever the canvas size, zoom, offset, or draw arguments change
-  useEffect(() => {
-    const canvas = baseCanvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-
-    console.log("Background chart render")
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.save()
-    ctx.translate(offset.x, offset.y)
-    ctx.scale(zoom, zoom)
-
-    draw(ctx, canvas, drawArgs)
-
-    ctx.restore()
-  }, [baseCanvasRef, zoom, offset, canvasSize, draw, drawArgs])
-
-  // Effect to handle selected data
-  // Only redraws clickedData if it changes, avoids unnecessary re-renders of the chart, ensures that zoom and offset are applied correctly
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+
+    if (!bufferCanvasRef.current) {
+      bufferCanvasRef.current = document.createElement("canvas");
+    }
+    const bufferCanvas = bufferCanvasRef.current;
+    bufferCanvas.width = canvas.width;
+    bufferCanvas.height = canvas.height;
+
     const ctx = canvas.getContext("2d")
-    if (!ctx) return
+    const bufferCtx = bufferCanvas.getContext("2d");
+    if (!ctx || !bufferCtx) return
 
-    if (clickedData && drawSelected) {
-      ctx.save()
-      ctx.translate(offset.x, offset.y)
-      ctx.scale(zoom, zoom)
+    console.log("Effect to render background chart")
 
-      drawSelected(ctx, clickedData)
+    const render = async () => {
+      bufferCtx.clearRect(0, 0, canvas.width, canvas.height)
+      bufferCtx.save()
+      bufferCtx.translate(offset.x, offset.y)
+      bufferCtx.scale(zoom, zoom)
 
-      ctx.restore()
-    } else {
-      // Clear the canvas if no data is selected
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      await draw(bufferCtx, bufferCanvas, drawArgs)
+      if (clickedData && drawSelected) {
+        drawSelected(bufferCtx, clickedData)
+      }
+
+      bufferCtx.restore()
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bufferCanvas, 0, 0);
     }
 
-  }, [canvasRef, clickedData, drawSelected, offset, zoom])
+    render()
+  }, [zoom, offset, canvasSize, draw, drawArgs, clickedData])
 
   // Effect to handle hovered data
   useEffect(() => {
@@ -130,21 +124,12 @@ export default function CanvasChart<TDrawArgs, TData>({ draw, drawArgs, mapCanva
   return (
     <div className="flex-1 relative w-full h-full">
       <div className="absolute inset-0 ">
-        <canvas
-          ref={baseCanvasRef}
-          className="absolute z-0"
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseLeave}
-          onWheel={handleMouseWheel}
-        />
         <TooltipProvider>
           <Tooltip open={!!hoveredTooltip}>
             <TooltipTrigger asChild>
               <canvas
                 ref={canvasRef}
-                className="absolute z-10"
+                className="absolute"
                 onMouseDown={handleMouseDown}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}

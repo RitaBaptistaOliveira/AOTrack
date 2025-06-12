@@ -1,5 +1,5 @@
 import type { ColorMap, IntervalType, ScaleType } from "@/types/visualization";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useState } from "react";
 import * as d3 from "d3";
 
 type Point = { x: number; y: number };
@@ -46,13 +46,8 @@ export const ChartInteractionProvider = ({ children }: { children: React.ReactNo
     const [scaleType, setScaleType] = useState<ScaleType>("linear");
     const [intervalType, setIntervalType] = useState<IntervalType>("minmax");
 
-    const [interpolator, setInterpolator] = useState(() => getInterpolator(colorMap));
+    const interpolator = getInterpolator(colorMap);
 
-
-    useEffect(() => {
-        setInterpolator(getInterpolator(colorMap));
-    }, [colorMap]);
-    
     return (
         <ChartInteractionContext.Provider
             value={{

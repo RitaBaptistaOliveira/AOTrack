@@ -5,15 +5,16 @@ import { useCallback, useEffect, useState } from "react"
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
 
 interface FrameSliderProps {
-  totalFrames: number;
+  totalFrames: number
+  currentFrame: number
+  setCurrentFrame: (frame: number) => void
+  isPlaying?: boolean
+  setIsPlaying?: (playing: boolean) => void
 }
 
-export default function FrameSlider({ totalFrames }: FrameSliderProps) {
-  const { currentFrame, setCurrentFrame } = useChartInteraction()
-
+export default function FrameSlider({totalFrames, currentFrame, setCurrentFrame, isPlaying = false, setIsPlaying,}: FrameSliderProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [inputValue, setInputValue] = useState((currentFrame + 1).toString())
-  const [isPlaying, setIsPlaying] = useState(false);
 
   const goToFrame = useCallback((frame: number) => {
     if (totalFrames <= 0) return;
@@ -25,16 +26,16 @@ export default function FrameSlider({ totalFrames }: FrameSliderProps) {
   const handleInputSubmit = useCallback(() => {
     const num = parseInt(inputValue)
     if (!isNaN(num)) goToFrame(num - 1)
-    else setInputValue((currentFrame + 1).toString());
+    else setInputValue((currentFrame + 1).toString())
     setIsEditing(false)
   }, [inputValue, currentFrame, goToFrame])
 
   const togglePlayPause = () => {
-    setIsPlaying((prev) => !prev);
+    setIsPlaying?.(!isPlaying)
   };
 
   useEffect(() => {
-    if (!isPlaying) return;
+    if (!isPlaying || !setIsPlaying) return;
 
     const interval = setInterval(() => {
       const next = currentFrame + 1;
@@ -44,7 +45,7 @@ export default function FrameSlider({ totalFrames }: FrameSliderProps) {
     }, 100); // speed (ms)
 
     return () => clearInterval(interval);
-  }, [isPlaying, totalFrames, setCurrentFrame]);
+  }, [isPlaying, totalFrames, setCurrentFrame, currentFrame, setIsPlaying]);
 
   return (
     <div className="space-y-3">
@@ -64,9 +65,11 @@ export default function FrameSlider({ totalFrames }: FrameSliderProps) {
       <div className="flex items-center justify-center gap-2">
 
         {/* Play/Pause Button */}
-        <Button variant="outline" size="icon" onClick={togglePlayPause} className="h-8 w-8 mr-2 align-left">
+        {setIsPlaying && (
+        <Button variant="outline" size="icon" onClick={togglePlayPause} className="h-8 w-8 mr-2">
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </Button>
+        )}
 
         {/* Frame Navigation Buttons */}
 

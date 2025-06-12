@@ -50,6 +50,31 @@ export function useAoHelper() {
     }
   }
 
+  const getPixelIntensities = async () => {
+    try {
+      const response = await fetch("http://localhost:8000/pixel/intensities", {
+        method: "GET",
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch pixel intensities");
+      }
+
+      const data = await response.json();
+      console.log("Pixel intensities data:", data.frames);
+      if (!Array.isArray(data.frames)) {
+        throw new Error("Unexpected data format: missing or invalid 'frames'");
+      }
+
+      return data.frames;
+    }
+    catch (err) {
+      console.error("Pixel intensity fetch error:", err);
+      throw err;
+    }
+  };
+
   const fetchFrameChanges = async (frameData: number[][]) => {
     const formData = new FormData();
     formData.append("data", JSON.stringify(frameData));
@@ -78,34 +103,11 @@ export function useAoHelper() {
     }
     return frameData; // Return original frame if error occurs
   };
-  
-
-  // const fetchMetadata = async () => {
-  //     const active = fetchSession();
-  //     if (!active) {
-  //         console.warn("No active session found");
-  //         return;
-  //     }
-  //     else {
-  //         try {
-  //             const response = await fetch(`http://localhost:8000/metadata/${file.name}`, {
-  //                 credentials: "include",
-  //             });
-
-  //             if (!response.ok) throw new Error("Failed to fetch metadata");
-
-  //             const data = await response.json();
-  //             setMetadata(data);
-  //         } catch (err) {
-  //             console.error("Fetch metadata error:", err);
-  //         }
-  //     }
-
-  // };
 
   return {
     uploadFile,
     fetchSession,
+    getPixelIntensities,
     fetchFrameChanges,
   };
 }
