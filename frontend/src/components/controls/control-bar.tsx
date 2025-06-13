@@ -5,35 +5,28 @@ import {
   ZoomOut,
   Move,
   MousePointer,
-  Grid3X3,
   Info,
   Palette,
   RotateCcw,
   Camera,
-  FileText,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useCanvasInteractions } from "@/hooks/use-canvas-interactions"
 export type BarMode = "pan" | "select" 
 
 interface ControlBarProps {
     mode: BarMode
     onModeChange: (mode: BarMode) => void
-    showGrid: boolean
     showTooltips: boolean
     showLegend: boolean
-    onToggleGrid: () => void
     onToggleTooltips: () => void
     onToggleLegend: () => void
     onZoomIn: () => void
     onZoomOut: () => void
     onResetZoom: () => void
     onDownloadPNG: () => void
-    onReset: () => void
   }
 
-export default function ControlBar({mode, onModeChange, showGrid, showTooltips, showLegend, onToggleGrid, onToggleTooltips, onToggleLegend, onZoomIn, onZoomOut, onResetZoom, onDownloadPNG, onReset}: ControlBarProps) {
-  const {downloadPNG}= useCanvasInteractions()
+export default function ControlBar({mode, onModeChange, showTooltips, showLegend, onToggleTooltips, onToggleLegend, onZoomIn, onZoomOut, onResetZoom, onDownloadPNG}: ControlBarProps) {
   return (
     <TooltipProvider>
       <div className="flex items-center gap-1 py-2 bg-white">
@@ -116,15 +109,6 @@ export default function ControlBar({mode, onModeChange, showGrid, showTooltips, 
         <div className="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant={showGrid ? "active" : "ghost"} onClick={onToggleGrid}>
-                <Grid3X3 className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Toggle grid</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger asChild>
               <Button
                 variant={showTooltips ? "active" : "ghost"}
                 onClick={onToggleTooltips}
@@ -145,17 +129,6 @@ export default function ControlBar({mode, onModeChange, showGrid, showTooltips, 
           </Tooltip>
         </div>
 
-        <Separator orientation="vertical" className="h-6" />
-
-        {/* Reset */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost" onClick={onReset}>
-              <FileText className="h-4 w-4" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>Reset all</TooltipContent>
-        </Tooltip>
       </div>
     </TooltipProvider>
   )

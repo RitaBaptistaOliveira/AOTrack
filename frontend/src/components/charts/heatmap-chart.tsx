@@ -1,299 +1,290 @@
 "use client"
 
-import type React from "react"
-
-import ControlBar from "../controls/control-bar"
-import DropdownGroup from "../controls/dropdown-group"
-import FrameSlider from "../controls/frame-slider"
-import { useCallback, useRef, useState, useEffect, createContext, useContext } from "react"
-import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "../ui/tooltip"
+import { useRef, useEffect, useState, useCallback } from "react"
+import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown } from "lucide-react"
-import { Button } from "../ui/button"
-import { useCanvasInteractions, type Point } from "@/hooks/use-canvas-interactions"
-import * as d3 from "d3"
+import FrameSlider from "../controls/frame-slider"
+import DropdownGroup from "../controls/dropdown-group"
+import ControlBar from "../controls/control-bar"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
+import { useInteractions } from "@/hooks/use-interactions"
+import { drawHeatmap } from "@/utils"
 
-// Simple local context for chart interactions
-const ChartContext = createContext<{
-  currentFrame: number
-  setCurrentFrame: (frame: number) => void
-  interpolator: (t: number) => string
-} | null>(null)
-
-function ChartProvider({ children }: { children: React.ReactNode }) {
-  const [currentFrame, setCurrentFrame] = useState(0)
-  const interpolator = d3.interpolateViridis
-
-  return (
-    <ChartContext.Provider value={{ currentFrame, setCurrentFrame, interpolator }}>{children}</ChartContext.Provider>
-  )
-}
-
-function useChartInteraction() {
-  const context = useContext(ChartContext)
-  if (!context) throw new Error("useChartInteraction must be used within ChartProvider")
-  return context
-}
-
-interface HeatmapChartProps {
-  frames: number[][][]
+interface HeatmapVisualizationProps {
+  data: number[][][]
   numRows: number
   numCols: number
   numFrames: number
+  onCellSelect?: (cell: { x: number; y: number; value: number; frame: number } | null) => void
+  onFrameChange?: (frame: number) => void
 }
 
-function HeatmapChartInner({ frames, numRows, numCols, numFrames }: HeatmapChartProps) {
+export default function Visualization({
+  data,
+  numRows,
+  numCols,
+  numFrames,
+  onCellSelect,
+  onFrameChange,
+}: HeatmapVisualizationProps) {
+  const { interpolator } = useChartInteraction()
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [currentFrame, setCurrentFrame] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [selectedCell, setSelectedCell] = useState<{ x: number; y: number } | null>(null)
+  const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number; value: number } | null>(null)
+
+  const [showTooltips, setShowTooltips] = useState(true)
+  const [showLegend, setShowLegend] = useState(true)
+  const [showControlBar, setShowControlBar] = useState(true)
+
+  const prevFrameRef = useRef<number>(-1)
+  const prevSelectedCellRef = useRef<{ x: number; y: number } | null>(null)
   const {
-    canvasRef,
     mode,
-    zoom,
-    offset,
+    setMode,
     canvasSize,
     clickPosition,
     hoverPos,
-
-    setMode,
+    offsetRef,
+    zoom,
     zoomIn,
     zoomOut,
     resetZoom,
-    downloadPNG,
-
     handleMouseDown,
+    handleMouseLeave,
     handleMouseMove,
     handleMouseUp,
-    handleMouseLeave,
     handleMouseWheel,
-  } = useCanvasInteractions()
+    downloadPNG,
+    requestDraw
+  } = useInteractions({
+    externalCanvasRef: canvasRef,
+    draw: (canvas, canvasSize, offset, zoom, drawArgs) => {
+      console.log("[DRAW TRIGGERED]", {
+        canvas,
+        canvasSize,
+        offset,
+        zoom,
+        drawArgs
+      })
+      drawHeatmap(
+        canvas,
+        canvasSize,
+        offset,
+        zoom,
+        drawArgs.currentFrame,
+        drawArgs.data,
+        drawArgs.numRows,
+        drawArgs.numCols,
+        drawArgs.selectedCell,
+        drawArgs.interpolator
+      )
+    },
+    drawArgs: {
+      currentFrame: currentFrame,
+      data: data[currentFrame],
+      numRows: numRows,
+      numCols: numCols,
+      selectedCell: selectedCell,
+      interpolator: interpolator
+    }
 
-  const { currentFrame, interpolator, setCurrentFrame } = useChartInteraction()
+  })
 
-  const [showControlBar, setShowControlBar] = useState<boolean>(true)
-  const [selectedCell, setSelectedCell] = useState<Point | null>(null)
-  const [hoveredTooltip, setHoveredTooltip] = useState<string | null>(null)
-  const bufferCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  useEffect(() => {
+    if (currentFrame !== prevFrameRef.current) {
+      prevFrameRef.current = currentFrame
+      onFrameChange?.(currentFrame)
+    }
+  }, [currentFrame])
 
-  // Map canvas coordinates to grid cell
-  const mapCanvasToCell = useCallback(
-    (canvasPoint: Point): Point | null => {
-      const canvas = canvasRef.current
-      if (!canvas) return null
+  // Notify parent of cell selection only when selection actually changes
+  useEffect(() => {
+    const cellChanged =
+      selectedCell?.x !== prevSelectedCellRef.current?.x || selectedCell?.y !== prevSelectedCellRef.current?.y
 
-      // Calculate cell size based on current canvas dimensions
-      const cellWidth = canvas.width / (window.devicePixelRatio || 1) / numCols
-      const cellHeight = canvas.height / (window.devicePixelRatio || 1) / numRows
+    if (cellChanged) {
+      prevSelectedCellRef.current = selectedCell
 
-      // Transform canvas point to data space
-      const dataX = (canvasPoint.x - offset.x) / zoom
-      const dataY = (canvasPoint.y - offset.y) / zoom
+      if (selectedCell) {
+        const value = data[currentFrame]?.[selectedCell.x]?.[selectedCell.y]
+        if (value !== undefined) {
+          onCellSelect?.({ ...selectedCell, value, frame: currentFrame })
+        }
 
-      const col = Math.floor(dataX / cellWidth)
-      const row = Math.floor(dataY / cellHeight)
+      } else {
+        onCellSelect?.(null)
+      }
+    }
+    requestDraw()
+  }, [selectedCell, currentFrame, data])
+
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      requestDraw()
+    }, 1) // adjust as needed
+
+    return () => clearTimeout(timeout)
+  }, [zoom, canvasSize])
+
+
+  function generateColorGradient(min = 0, max = 1, steps = 20) {
+    const colorStops = Array.from({ length: steps }, (_, i) => {
+      const value = min + ((max - min) * i) / (steps - 1)
+      const t = (value - min) / (max - min) // normalize to [0, 1]
+      return `${interpolator(t)} ${t * 100}%` // bottom to top
+    })
+    return `linear-gradient(to top, ${colorStops.join(', ')})`
+  }
+
+  const getCellFromCoordinates = useCallback(
+    (canvasX: number, canvasY: number) => {
+      if (canvasSize.width === 0 || canvasSize.height === 0) return null
+
+      const squareSize = Math.min(canvasSize.width, canvasSize.height)
+      const offsetX = (canvasSize.width - squareSize) / 2
+      const offsetY = (canvasSize.height - squareSize) / 2
+
+      const adjustedX = canvasX - offsetX
+      const adjustedY = canvasY - offsetY
+
+      if (adjustedX < 0 || adjustedX > squareSize || adjustedY < 0 || adjustedY > squareSize) {
+        return null
+      }
+
+      const dataX = (adjustedX - offsetRef.current.x) / zoom
+      const dataY = (adjustedY - offsetRef.current.y) / zoom
+
+      const col = Math.floor(dataX / (squareSize / numCols))
+      const row = Math.floor(dataY / (squareSize / numRows))
 
       if (col >= 0 && col < numCols && row >= 0 && row < numRows) {
         return { x: col, y: row }
       }
       return null
     },
-    [numCols, numRows, offset, zoom],
+    [zoom, numCols, numRows, canvasSize],
   )
 
-  // Handle click to select cell
+  // If the clicked position changes, so does the selected sell
   useEffect(() => {
-    if (!clickPosition) return
-    const cell = mapCanvasToCell(clickPosition)
-    setSelectedCell(cell)
-  }, [clickPosition, mapCanvasToCell])
-
-  // Handle hover for tooltip
-  useEffect(() => {
-    if (!hoverPos) {
-      setHoveredTooltip(null)
-      return
+    if (clickPosition) {
+      const cell = getCellFromCoordinates(clickPosition.x, clickPosition.y)
+      setSelectedCell(cell)
     }
+  }, [clickPosition])
 
-    const cell = mapCanvasToCell(hoverPos)
-    if (cell && frames[currentFrame]) {
-      const value = frames[currentFrame][cell.x]?.[cell.y]
-      if (value !== undefined) {
-        setHoveredTooltip(`Cell (${cell.x}, ${cell.y}): ${value.toFixed(3)}`)
+  useEffect(() => {
+    if (hoverPos && showTooltips) {
+      const cell = getCellFromCoordinates(hoverPos.x, hoverPos.y)
+      if (cell) {
+        const value = data[currentFrame]?.[cell.x]?.[cell.y]
+        if (value !== undefined) {
+          setHoveredCell({ ...cell, value })
+        }
       } else {
-        setHoveredTooltip(null)
+        setHoveredCell(null)
       }
-    } else {
-      setHoveredTooltip(null)
     }
-  }, [hoverPos, mapCanvasToCell, frames, currentFrame])
+  }, [hoverPos])
 
-  // Main drawing function
-  const drawHeatmap = useCallback(
-    async (ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement) => {
-      const frameData = frames[currentFrame]
-      if (!frameData) {
-        console.error("No data for current frame:", currentFrame)
-        return
-      }
+  const goToFrame = (frame: number) => {
+    const frameNum = Math.max(0, Math.min(frame, numFrames - 1))
+    setCurrentFrame(frameNum)
+  }
 
-      // Calculate cell dimensions
-      const canvasWidth = canvas.width / (window.devicePixelRatio || 1)
-      const canvasHeight = canvas.height / (window.devicePixelRatio || 1)
-      const cellWidth = canvasWidth / numCols
-      const cellHeight = canvasHeight / numRows
-
-      try {
-        // Simple normalization of data for visualization
-        const flatValues = frameData.flat().flat()
-        const minVal = Math.min(...flatValues)
-        const maxVal = Math.max(...flatValues)
-        const range = maxVal - minVal || 1
-
-        // Draw cells
-        for (let row = 0; row < numRows; row++) {
-          for (let col = 0; col < numCols; col++) {
-            const value = frameData[col]?.[row]
-            if (value !== undefined) {
-              // Normalize value for display
-              const normalizedValue = (value - minVal) / range
-              ctx.fillStyle = interpolator(normalizedValue)
-              ctx.fillRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight)
-            }
-          }
-        }
-
-        // Draw selected cell highlight
-        if (selectedCell) {
-          ctx.strokeStyle = "#FF69B4"
-          ctx.lineWidth = 2
-          ctx.strokeRect(selectedCell.x * cellWidth, selectedCell.y * cellHeight, cellWidth, cellHeight)
-        }
-      } catch (error) {
-        console.error("Error processing frame data:", error)
-      }
-    },
-    [frames, currentFrame, numRows, numCols, selectedCell, interpolator],
-  )
-
-  // Render effect
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    // Setup buffer canvas
-    if (!bufferCanvasRef.current) {
-      bufferCanvasRef.current = document.createElement("canvas")
-    }
-    const bufferCanvas = bufferCanvasRef.current
-    bufferCanvas.width = canvas.width
-    bufferCanvas.height = canvas.height
-
-    const ctx = canvas.getContext("2d")
-    const bufferCtx = bufferCanvas.getContext("2d")
-    if (!ctx || !bufferCtx) return
-
-    const render = async () => {
-      // Clear buffer
-      bufferCtx.clearRect(0, 0, bufferCanvas.width, bufferCanvas.height)
-
-      // Apply transformations
-      bufferCtx.save()
-      bufferCtx.translate(offset.x, offset.y)
-      bufferCtx.scale(zoom, zoom)
-
-      // Draw heatmap
-      await drawHeatmap(bufferCtx, bufferCanvas)
-
-      bufferCtx.restore()
-
-      // Copy buffer to main canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      ctx.drawImage(bufferCanvas, 0, 0)
-    }
-
-    render()
-  }, [zoom, offset, canvasSize, drawHeatmap])
+    if (!isPlaying) return
+    const interval = setInterval(() => {
+      setCurrentFrame((prev) => {
+        const next = prev + 1
+        if (next >= numFrames) {
+          setIsPlaying(false)
+          return prev
+        }
+        return next
+      })
+    }, 500)
+    return () => clearInterval(interval)
+  }, [isPlaying, numFrames])
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex flex-row justify-between">
-        <h2 className="text-sm sm:text-base md:text-lg font-semibold">Heatmap Visualization</h2>
-        {/* <div className="flex items-center justify-between gap-2">
+      {/* Header */}
+      <div className="flex justify-between items-center flex-shrink-0">
+        <h2 className="text-lg font-semibold">Heatmap</h2>
+        <div className="flex gap-2">
           <DropdownGroup />
-          <div className="flex items-center gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => setShowControlBar((prev) => !prev)}>
-                    {showControlBar ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Toggle control bar</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        </div> */}
+          <Button variant="ghost" size="icon" onClick={() => setShowControlBar(!showControlBar)}>
+            {showControlBar ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
-      {/* {showControlBar && (
-        <div className="py-2">
-          <ControlBar
-            interaction={{
-              mode: mode,
-              onModeChange: setMode,
-            }}
-            display={{
-              showGrid: false,
-              showTooltips: false,
-              showLegend: false,
-              onToggleGrid: () => {},
-              onToggleTooltips: () => {},
-              onToggleLegend: () => {},
-            }}
-            zoom={{
-              onZoomIn: zoomIn,
-              onZoomOut: zoomOut,
-              onResetZoom: resetZoom,
-            }}
-            utility={{
-              onDownloadPNG: downloadPNG,
-              onReset: resetZoom,
-            }}
-          />
-        </div>
-      )} */}
+      {showControlBar &&
+        <ControlBar
+          mode={mode}
+          onModeChange={setMode}
+          showTooltips={showTooltips}
+          showLegend={showLegend}
+          onToggleTooltips={() => setShowTooltips((prev) => !prev)}
+          onToggleLegend={() => setShowLegend((prev) => !prev)}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onResetZoom={resetZoom}
+          onDownloadPNG={downloadPNG}
+        />
+      }
 
-      <div className="flex-1 p-0 flex flex-col">
-        <div className="flex-1 relative w-full h-full">
-          <div className="absolute inset-0">
-            <TooltipProvider>
-              <Tooltip open={!!hoveredTooltip}>
-                <TooltipTrigger asChild>
-                  <canvas
-                    ref={canvasRef}
-                    className="absolute w-full h-full"
-                    onMouseDown={handleMouseDown}
-                    onMouseMove={handleMouseMove}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={handleMouseLeave}
-                    onWheel={handleMouseWheel}
-                  />
-                </TooltipTrigger>
-                <TooltipContent side="right" sideOffset={10}>
-                  {hoveredTooltip}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+      {/* Canvas Container */}
+      <div className="flex-1 relative min-h-0">
+        <div ref={containerRef} className="w-full h-full border-2 border-gray-300 relative">
+          <canvas
+            ref={canvasRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            onWheel={handleMouseWheel}
+            className={`w-full h-full ${mode === "pan" ? "cursor-move" : "cursor-crosshair"}`}
+          />
+          {hoveredCell && showTooltips && (
+            <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none">
+              Cell ({hoveredCell.x}, {hoveredCell.y}): {hoveredCell.value}
+            </div>
+          )}
+
+          {showLegend && (
+            <div className="absolute top-0 right-0 bg-white border rounded p-2 gap-2 shadow h-full flex flex-col items-center text-xs justify-between">
+              <div>{Math.max(...data[currentFrame].flat().flat())}</div>
+              <div
+                className="w-4 h-full rounded"
+                style={{
+                  background: generateColorGradient(
+                    Math.min(...data[currentFrame].flat().flat()),
+                    Math.max(...data[currentFrame].flat().flat()),
+                    20
+                  ),
+                }}></div>
+              <div>{Math.min(...data[currentFrame].flat().flat())}</div>
+            </div>
+          )}
         </div>
-        <div className="pt-2">
-          <FrameSlider totalFrames={numFrames} currentFrame={currentFrame} setCurrentFrame={setCurrentFrame} />
-        </div>
+      </div>
+
+      {/* Frame Controls */}
+      <div className="mt-4 flex-shrink-0">
+        <FrameSlider
+          totalFrames={numFrames}
+          currentFrame={currentFrame}
+          setCurrentFrame={goToFrame}
+          isPlaying={isPlaying}
+          setIsPlaying={setIsPlaying}
+        />
       </div>
     </div>
-  )
-}
-
-export default function HeatmapChart(props: HeatmapChartProps) {
-  return (
-    <ChartProvider>
-      <HeatmapChartInner {...props} />
-    </ChartProvider>
   )
 }

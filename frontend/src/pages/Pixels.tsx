@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import HeatmapVisualization from '@/components/charts/heatmap-visualization'
 import { useAoHelper } from '@/hooks/use-ao-helper'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
-
+import Visualization from '@/components/charts/heatmap-chart'
 interface FrameProps {
   data: number[][][]
   numRows: number
@@ -66,7 +66,7 @@ export default function Pixels() {
     <DashboardGrid variant="simple">
       <GridItem area="a">
         {frameData &&
-          <HeatmapVisualization
+          <Visualization
             data={frameData.data}
             numRows={frameData.numRows}
             numCols={frameData.numCols}
