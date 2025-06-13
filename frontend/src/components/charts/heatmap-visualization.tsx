@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import FrameSlider from "../controls/frame-slider"
 import DropdownGroup from "../controls/dropdown-group"
-import type { IntervalType, ScaleType } from "@/types/visualization"
 import ControlBar from "../controls/control-bar"
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
 

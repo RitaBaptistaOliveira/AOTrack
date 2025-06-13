@@ -13,7 +13,7 @@ import {
   FileText,
 } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-
+import { useCanvasInteractions } from "@/hooks/use-canvas-interactions"
 export type BarMode = "pan" | "select" 
 
 interface ControlBarProps {
@@ -33,7 +33,7 @@ interface ControlBarProps {
   }
 
 export default function ControlBar({mode, onModeChange, showGrid, showTooltips, showLegend, onToggleGrid, onToggleTooltips, onToggleLegend, onZoomIn, onZoomOut, onResetZoom, onDownloadPNG, onReset}: ControlBarProps) {
-
+  const {downloadPNG}= useCanvasInteractions()
   return (
     <TooltipProvider>
       <div className="flex items-center gap-1 py-2 bg-white">

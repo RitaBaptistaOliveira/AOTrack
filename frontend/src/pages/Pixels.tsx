@@ -1,4 +1,3 @@
-import HeatmapChart from '@/components/charts/heatmap-chart'
 import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dashboard-grid'
 import { useMediaQuery } from 'react-responsive'
 import { useCallback, useEffect, useState } from 'react'
@@ -20,23 +19,6 @@ export default function Pixels() {
   const [frameData, setFrameData] = useState<FrameProps | null>(null)
   const { getPixelIntensities } = useAoHelper();
   const { scaleType, intervalType } = useChartInteraction()
-  const array3x3x3: number[][][] = [
-    [
-      [1, 2, 3],
-      [4, 5, 6],
-      [7, 8, 9]
-    ],
-    [
-      [0, 11, 12],
-      [13, 14, 15],
-      [16, 17, 18]
-    ],
-    [
-      [19, 20, 21],
-      [22, 23, 24],
-      [25, 26, 27]
-    ]
-  ];
 
   const handleCellSelect = useCallback((cell: { x: number; y: number; value: number; frame: number } | null) => {
     setSelectedCell(cell)
