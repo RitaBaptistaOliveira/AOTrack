@@ -2,16 +2,14 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { useState } from "react"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
+import type { ColorMap, IntervalType, ScaleType } from "@/types/visualization"
 
 export default function DropdownGroup() {
-  const [colorMap, setColorMap] = useState("viridis")
-  const [scaleType, setScaleType] = useState("linear")
-  const [intervalType, setIntervalType] = useState("minmax")
-
+  const { colorMap, setColorMap, intervalType, setIntervalType, scaleType, setScaleType } = useChartInteraction()
   return (
     <div className="flex items-center gap-2">
-      <Select value={scaleType} onValueChange={setScaleType}>
+      <Select value={scaleType} onValueChange={(value) => { setScaleType(value as ScaleType)}}>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -35,7 +33,7 @@ export default function DropdownGroup() {
         </SelectContent>
       </Select>
 
-      <Select value={intervalType} onValueChange={setIntervalType}>
+      <Select value={intervalType} onValueChange={(value) => { setIntervalType(value as IntervalType)}}>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -53,7 +51,7 @@ export default function DropdownGroup() {
         </SelectContent>
       </Select>
 
-      <Select value={colorMap} onValueChange={setColorMap}>
+      <Select value={colorMap} onValueChange={(value) => {setColorMap(value as ColorMap);}}>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

@@ -4,9 +4,10 @@ import { useMediaQuery } from 'react-responsive'
 import { useCallback, useEffect, useState } from 'react'
 import HeatmapVisualization from '@/components/charts/heatmap-visualization'
 import { useAoHelper } from '@/hooks/use-ao-helper'
+import { useChartInteraction } from '@/contexts/chart-interactions-context'
 
 interface FrameProps {
-  frameData: number[][][]
+  data: number[][][]
   numRows: number
   numCols: number
   numFrames: number
@@ -18,6 +19,7 @@ export default function Pixels() {
   const [currentFrame, setCurrentFrame] = useState(0)
   const [frameData, setFrameData] = useState<FrameProps | null>(null)
   const { getPixelIntensities } = useAoHelper();
+  const { scaleType, intervalType } = useChartInteraction()
   const array3x3x3: number[][][] = [
     [
       [1, 2, 3],
@@ -47,18 +49,15 @@ export default function Pixels() {
   }, [])
 
   useEffect(() => {
-    handleLoadFromHelper();
-  }, []);
+    getFrames();
+  }, [scaleType, intervalType]);
 
-  const handleLoadFromHelper = async () => {
+  const getFrames = async () => {
     try {
-      const frames = await getPixelIntensities();
-
-      // Validate and process the 3D array
+      const frames = await getPixelIntensities()
       if (!Array.isArray(frames) || frames.length === 0) {
         throw new Error("Invalid data format: Expected 3D array");
       }
-
       const numFrames = frames.length;
       const numRows = frames[0]?.length || 0;
       const numCols = frames[0]?.[0]?.length || 0;
@@ -68,18 +67,16 @@ export default function Pixels() {
       }
 
       const processedData: FrameProps = {
-        frameData: frames,
+        data: frames,
         numRows: numRows,
         numCols: numCols,
         numFrames: numFrames,
       };
-
       setFrameData(processedData);
-      setCurrentFrame(0);
-
       console.log(`✅ Loaded ${numFrames} frames of ${numRows}x${numCols} heatmaps`);
-    } catch (err) {
-      console.log(`Error loading data: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
+    catch (err) {
+      console.log(`Error updating data: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
 
@@ -88,7 +85,7 @@ export default function Pixels() {
       <GridItem area="a">
         {frameData &&
           <HeatmapVisualization
-            data={frameData.frameData}
+            data={frameData.data}
             numRows={frameData.numRows}
             numCols={frameData.numCols}
             numFrames={frameData.numFrames}

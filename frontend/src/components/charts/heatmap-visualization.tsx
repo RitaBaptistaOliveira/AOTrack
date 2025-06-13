@@ -3,13 +3,14 @@
 import type React from "react"
 import { useRef, useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ZoomIn, ZoomOut, RotateCcw, Camera, Move, MousePointer, Grid3X3, Info, Palette, FileText } from "lucide-react"
+import { ChevronUp, ChevronDown } from "lucide-react"
 import FrameSlider from "../controls/frame-slider"
+import DropdownGroup from "../controls/dropdown-group"
+import type { IntervalType, ScaleType } from "@/types/visualization"
+import ControlBar from "../controls/control-bar"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
 
 type InteractionMode = "pan" | "select"
-type ColorMap = "viridis" | "inferno" | "plasma" | "greys" | "blues" | "reds" | "greens"
-type ScaleType = "linear" | "log" | "sqrt" | "pow"
 
 interface HeatmapVisualizationProps {
   data: number[][][]
@@ -28,6 +29,7 @@ export default function HeatmapVisualization({
   onCellSelect,
   onFrameChange,
 }: HeatmapVisualizationProps) {
+  const { interpolator } = useChartInteraction()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [currentFrame, setCurrentFrame] = useState(0)
@@ -41,18 +43,14 @@ export default function HeatmapVisualization({
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
 
   const [interactionMode, setInteractionMode] = useState<InteractionMode>("select")
-  const [colorMap, setColorMap] = useState<ColorMap>("viridis")
-  const [scaleType, setScaleType] = useState<ScaleType>("linear")
   const [showGrid, setShowGrid] = useState(true)
   const [showTooltips, setShowTooltips] = useState(true)
   const [showLegend, setShowLegend] = useState(true)
   const [showControlBar, setShowControlBar] = useState(true)
 
-  // Use refs to track previous values to prevent unnecessary calls
   const prevFrameRef = useRef<number>(-1)
   const prevSelectedCellRef = useRef<{ x: number; y: number } | null>(null)
 
-  // Notify parent of frame changes only when frame actually changes
   useEffect(() => {
     if (currentFrame !== prevFrameRef.current) {
       prevFrameRef.current = currentFrame
@@ -117,104 +115,13 @@ export default function HeatmapVisualization({
     }
   }, [resizeCanvas])
 
-  const getColorInterpolator = (colormap: ColorMap) => {
-    const colormaps = {
-      viridis: [
-        [68, 1, 84],
-        [59, 82, 139],
-        [33, 145, 140],
-        [94, 201, 98],
-        [253, 231, 37],
-      ],
-      inferno: [
-        [0, 0, 4],
-        [40, 11, 84],
-        [101, 21, 110],
-        [159, 42, 99],
-        [212, 72, 66],
-        [245, 125, 21],
-        [252, 194, 0],
-      ],
-      plasma: [
-        [13, 8, 135],
-        [75, 3, 161],
-        [125, 3, 168],
-        [168, 34, 150],
-        [203, 70, 121],
-        [229, 107, 93],
-        [248, 148, 65],
-        [253, 195, 40],
-      ],
-      greys: [
-        [0, 0, 0],
-        [64, 64, 64],
-        [128, 128, 128],
-        [192, 192, 192],
-        [255, 255, 255],
-      ],
-      blues: [
-        [8, 48, 107],
-        [8, 81, 156],
-        [33, 113, 181],
-        [66, 146, 198],
-        [107, 174, 214],
-        [158, 202, 225],
-        [198, 219, 239],
-        [247, 251, 255],
-      ],
-      reds: [
-        [103, 0, 13],
-        [165, 15, 21],
-        [203, 24, 29],
-        [239, 59, 44],
-        [251, 106, 74],
-        [252, 146, 114],
-        [252, 187, 161],
-        [254, 229, 217],
-      ],
-      greens: [
-        [0, 68, 27],
-        [0, 109, 44],
-        [35, 139, 69],
-        [65, 171, 93],
-        [116, 196, 118],
-        [161, 217, 155],
-        [199, 233, 192],
-        [247, 252, 245],
-      ],
-    }
-
-    return (t: number) => {
-      const colors = colormaps[colormap]
-      const scaledT = t * (colors.length - 1)
-      const i = Math.floor(scaledT)
-      const f = scaledT - i
-
-      if (i >= colors.length - 1) return `rgb(${colors[colors.length - 1].join(",")})`
-      if (i < 0) return `rgb(${colors[0].join(",")})`
-
-      const c1 = colors[i]
-      const c2 = colors[i + 1]
-      const r = Math.round(c1[0] + f * (c2[0] - c1[0]))
-      const g = Math.round(c1[1] + f * (c2[1] - c1[1]))
-      const b = Math.round(c1[2] + f * (c2[2] - c1[2]))
-
-      return `rgb(${r}, ${g}, ${b})`
-    }
-  }
-
-  const applyScale = (value: number, min: number, max: number, scaleType: ScaleType) => {
-    const normalized = (value - min) / (max - min)
-    switch (scaleType) {
-      case "log":
-        return Math.log(normalized + 1) / Math.log(2)
-      case "sqrt":
-        return Math.sqrt(normalized)
-      case "pow":
-        return Math.pow(normalized, 2)
-      default:
-        return normalized
-    }
+  function generateColorGradient(min = 0, max = 1, steps = 20) {
+    const colorStops = Array.from({ length: steps }, (_, i) => {
+      const value = min + ((max - min) * i) / (steps - 1)
+      const t = (value - min) / (max - min) // normalize to [0, 1]
+      return `${interpolator(t)} ${t * 100}%` // bottom to top
+    })
+    return `linear-gradient(to top, ${colorStops.join(', ')})`
   }
 
   const getCanvasCoordinates = useCallback((e: React.MouseEvent) => {
@@ -361,13 +268,6 @@ export default function HeatmapVisualization({
     const cellWidth = squareSize / numCols
     const cellHeight = squareSize / numRows
 
-    const flatValues = frameData.flat().flat()
-    const minVal = Math.min(...flatValues)
-    const maxVal = Math.max(...flatValues)
-    const range = maxVal - minVal || 1
-
-    const colorInterpolator = getColorInterpolator(colorMap)
-
     ctx.clearRect(0, 0, canvasSize.width, canvasSize.height)
     ctx.save()
     ctx.translate(offsetX + offset.x, offsetY + offset.y)
@@ -375,10 +275,9 @@ export default function HeatmapVisualization({
 
     for (let row = 0; row < numRows; row++) {
       for (let col = 0; col < numCols; col++) {
-        const value = frameData[col]?.[row]
+        const value = frameData[row]?.[col]
         if (value !== undefined) {
-          const scaledValue = applyScale(value, minVal, maxVal, scaleType)
-          ctx.fillStyle = colorInterpolator(scaledValue)
+          ctx.fillStyle = interpolator(value)
           ctx.fillRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight)
 
           if (showGrid) {
@@ -392,114 +291,43 @@ export default function HeatmapVisualization({
 
     if (selectedCell) {
       ctx.strokeStyle = "#FF1493"
-      ctx.lineWidth = 3
+      ctx.lineWidth = 1
       ctx.strokeRect(selectedCell.x * cellWidth, selectedCell.y * cellHeight, cellWidth, cellHeight)
     }
 
     ctx.restore()
-  }, [currentFrame, zoom, offset, selectedCell, colorMap, scaleType, showGrid, canvasSize, data, numCols, numRows])
+  }, [currentFrame, zoom, offset, selectedCell, showGrid, canvasSize, data, numCols, numRows])
 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex justify-between items-center mb-4 flex-shrink-0">
+      <div className="flex justify-between items-center flex-shrink-0">
         <h2 className="text-lg font-semibold">Heatmap</h2>
         <div className="flex gap-2">
-          <Select value={scaleType} onValueChange={(value: ScaleType) => setScaleType(value)}>
-            <SelectTrigger className="w-24 h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="linear">Linear</SelectItem>
-              <SelectItem value="log">Log</SelectItem>
-              <SelectItem value="sqrt">Sqrt</SelectItem>
-              <SelectItem value="pow">Power</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value="minmax">
-            <SelectTrigger className="w-24 h-8 text-xs">
-              <SelectValue placeholder="MinMax" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="minmax">MinMax</SelectItem>
-              <SelectItem value="zscale">Z-Scale</SelectItem>
-              <SelectItem value="percentile">Percentile</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={colorMap} onValueChange={(value: ColorMap) => setColorMap(value)}>
-            <SelectTrigger className="w-24 h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="viridis">Viridis</SelectItem>
-              <SelectItem value="inferno">Inferno</SelectItem>
-              <SelectItem value="plasma">Plasma</SelectItem>
-              <SelectItem value="greys">Greys</SelectItem>
-              <SelectItem value="blues">Blues</SelectItem>
-              <SelectItem value="reds">Reds</SelectItem>
-              <SelectItem value="greens">Greens</SelectItem>
-            </SelectContent>
-          </Select>
-
+          <DropdownGroup/>
           <Button variant="ghost" size="icon" onClick={() => setShowControlBar(!showControlBar)}>
-            {showControlBar ? "▲" : "▼"}
+            {showControlBar ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
         </div>
       </div>
 
-      {/* Control Bar */}
-      {showControlBar && (
-        <div className="flex items-center gap-1 mb-4 p-2 bg-gray-50 rounded flex-shrink-0">
-          <Button variant="outline" size="icon" onClick={downloadPNG}>
-            <Camera className="h-4 w-4" />
-          </Button>
-          <div className="w-px h-6 bg-gray-300" />
-          <Button variant="outline" size="icon" onClick={zoomIn}>
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={zoomOut}>
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon" onClick={resetZoom}>
-            <RotateCcw className="h-4 w-4" />
-          </Button>
-          <div className="w-px h-6 bg-gray-300" />
-          <Button
-            variant={interactionMode === "pan" ? "default" : "outline"}
-            size="icon"
-            onClick={() => setInteractionMode("pan")}
-          >
-            <Move className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={interactionMode === "select" ? "default" : "outline"}
-            size="icon"
-            onClick={() => setInteractionMode("select")}
-          >
-            <MousePointer className="h-4 w-4" />
-          </Button>
-          <div className="w-px h-6 bg-gray-300" />
-          <Button variant={showGrid ? "default" : "outline"} size="icon" onClick={() => setShowGrid(!showGrid)}>
-            <Grid3X3 className="h-4 w-4" />
-          </Button>
-          <Button
-            variant={showTooltips ? "default" : "outline"}
-            size="icon"
-            onClick={() => setShowTooltips(!showTooltips)}
-          >
-            <Info className="h-4 w-4" />
-          </Button>
-          <Button variant={showLegend ? "default" : "outline"} size="icon" onClick={() => setShowLegend(!showLegend)}>
-            <Palette className="h-4 w-4" />
-          </Button>
-          <div className="w-px h-6 bg-gray-300" />
-          <Button variant="outline" size="icon" onClick={resetZoom}>
-            <FileText className="h-4 w-4" />
-          </Button>
-        </div>
-      )}
+      {showControlBar &&
+        <ControlBar
+          mode={interactionMode}
+          onModeChange={setInteractionMode}
+          showGrid={showGrid}
+          showTooltips={showTooltips}
+          showLegend={showLegend}
+          onToggleGrid={() => setShowGrid((prev) => !prev)}
+          onToggleTooltips={() => setShowTooltips((prev) => !prev)}
+          onToggleLegend={() => setShowLegend((prev) => !prev)}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onResetZoom={resetZoom}
+          onDownloadPNG={downloadPNG}
+          onReset={resetZoom}
+        />
+      }
 
       {/* Canvas Container */}
       <div className="flex-1 relative min-h-0">
@@ -520,14 +348,19 @@ export default function HeatmapVisualization({
           )}
 
           {showLegend && (
-            <div className="absolute top-0 right-4 bg-white border rounded p-2 shadow">
-              <div className="text-xs font-medium mb-2">Color Scale</div>
-              <div className="w-4 h-32 bg-gradient-to-t from-purple-900 via-blue-500 via-green-400 to-yellow-300 rounded"></div>
-              <div className="text-xs mt-1">
-                <div>Max: {Math.max(...data[currentFrame].flat().flat())}</div>
-                <div>Min: {Math.min(...data[currentFrame].flat().flat())}</div>
+            <div className="absolute top-0 right-0 bg-white border rounded p-2 gap-2 shadow h-full flex flex-col items-center text-xs justify-between">
+              <div>{Math.max(...data[currentFrame].flat().flat())}</div>
+              <div
+                className="w-4 h-full rounded"
+                style={{
+                  background: generateColorGradient(
+                    Math.min(...data[currentFrame].flat().flat()),
+                    Math.max(...data[currentFrame].flat().flat()),
+                    20
+                  ),
+                }}></div>
+                <div>{Math.min(...data[currentFrame].flat().flat())}</div>
               </div>
-            </div>
           )}
         </div>
       </div>

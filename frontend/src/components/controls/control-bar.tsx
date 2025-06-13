@@ -17,35 +17,22 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 export type BarMode = "pan" | "select" 
 
 interface ControlBarProps {
-  interaction: {
     mode: BarMode
     onModeChange: (mode: BarMode) => void
-  }
-  display: {
     showGrid: boolean
     showTooltips: boolean
     showLegend: boolean
     onToggleGrid: () => void
     onToggleTooltips: () => void
     onToggleLegend: () => void
-  }
-  zoom: {
     onZoomIn: () => void
     onZoomOut: () => void
     onResetZoom: () => void
-  }
-  utility: {
     onDownloadPNG: () => void
     onReset: () => void
   }
-}
 
-export default function ControlBar({interaction, display, zoom, utility}: ControlBarProps) {
-
-  const { mode, onModeChange } = interaction
-  const { showGrid, showTooltips, showLegend, onToggleGrid, onToggleTooltips, onToggleLegend } = display
-  const { onZoomIn, onZoomOut, onResetZoom } = zoom
-  const { onDownloadPNG, onReset } = utility
+export default function ControlBar({mode, onModeChange, showGrid, showTooltips, showLegend, onToggleGrid, onToggleTooltips, onToggleLegend, onZoomIn, onZoomOut, onResetZoom, onDownloadPNG, onReset}: ControlBarProps) {
 
   return (
     <TooltipProvider>

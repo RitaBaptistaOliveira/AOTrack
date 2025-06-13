@@ -51,38 +51,11 @@ export function useAoHelper() {
   }
 
   const getPixelIntensities = async () => {
-    try {
-      const response = await fetch("http://localhost:8000/pixel/intensities", {
-        method: "GET",
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch pixel intensities");
-      }
-
-      const data = await response.json();
-      console.log("Pixel intensities data:", data.frames);
-      if (!Array.isArray(data.frames)) {
-        throw new Error("Unexpected data format: missing or invalid 'frames'");
-      }
-
-      return data.frames;
-    }
-    catch (err) {
-      console.error("Pixel intensity fetch error:", err);
-      throw err;
-    }
-  };
-
-  const fetchFrameChanges = async (frameData: number[][]) => {
     const formData = new FormData();
-    formData.append("data", JSON.stringify(frameData));
-    formData.append("interval_type", intervalType);
-    formData.append("scale_type", scaleType);
-
+    formData.append("interval_type", intervalType.toString());
+    formData.append("scale_type", scaleType.toString());
     try {
-      const response = await fetch("http://localhost:8000/pixel/apply-frame-changes", {
+      const response = await fetch("http://localhost:8000/pixel/get-intensities", {
         method: "POST",
         body: formData,
         credentials: "include",
@@ -100,15 +73,13 @@ export function useAoHelper() {
       return modifiedFrame;
     } catch (err) {
       console.error("Scale or Interval error when trying to apply to frame:", err);
-    }
-    return frameData; // Return original frame if error occurs
+    } return null
   };
 
   return {
     uploadFile,
     fetchSession,
-    getPixelIntensities,
-    fetchFrameChanges,
+    getPixelIntensities
   };
 }
 

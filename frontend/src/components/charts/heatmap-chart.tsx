@@ -214,7 +214,7 @@ function HeatmapChartInner({ frames, numRows, numCols, numFrames }: HeatmapChart
     <div className="h-full flex flex-col">
       <div className="flex flex-row justify-between">
         <h2 className="text-sm sm:text-base md:text-lg font-semibold">Heatmap Visualization</h2>
-        <div className="flex items-center justify-between gap-2">
+        {/* <div className="flex items-center justify-between gap-2">
           <DropdownGroup />
           <div className="flex items-center gap-2">
             <TooltipProvider>
@@ -228,10 +228,10 @@ function HeatmapChartInner({ frames, numRows, numCols, numFrames }: HeatmapChart
               </Tooltip>
             </TooltipProvider>
           </div>
-        </div>
+        </div> */}
       </div>
 
-      {showControlBar && (
+      {/* {showControlBar && (
         <div className="py-2">
           <ControlBar
             interaction={{
@@ -257,7 +257,7 @@ function HeatmapChartInner({ frames, numRows, numCols, numFrames }: HeatmapChart
             }}
           />
         </div>
-      )}
+      )} */}
 
       <div className="flex-1 p-0 flex flex-col">
         <div className="flex-1 relative w-full h-full">

@@ -34,7 +34,6 @@ app.add_middleware(
 )
 
 app.include_router(upload.router)
-
 app.include_router(pixel.router)
 
 @app.get("/")
