@@ -1,7 +1,6 @@
 import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dashboard-grid'
 import { useMediaQuery } from 'react-responsive'
 import { useCallback, useEffect, useState } from 'react'
-import HeatmapVisualization from '@/components/charts/heatmap-visualization'
 import { useAoHelper } from '@/hooks/use-ao-helper'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import Visualization from '@/components/charts/heatmap-chart'
@@ -22,12 +21,10 @@ export default function Pixels() {
 
   const handleCellSelect = useCallback((cell: { x: number; y: number; value: number; frame: number } | null) => {
     setSelectedCell(cell)
-    console.log("Cell selected:", cell)
   }, [])
 
   const handleFrameChange = useCallback((frame: number) => {
     setCurrentFrame(frame)
-    console.log("Frame changed:", frame)
   }, [])
 
   useEffect(() => {
@@ -55,7 +52,6 @@ export default function Pixels() {
         numFrames: numFrames,
       };
       setFrameData(processedData);
-      console.log(`✅ Loaded ${numFrames} frames of ${numRows}x${numCols} heatmaps`);
     }
     catch (err) {
       console.log(`Error updating data: ${err instanceof Error ? err.message : "Unknown error"}`);

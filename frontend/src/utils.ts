@@ -1,22 +1,20 @@
 export function drawHeatmap(
     canvas: HTMLCanvasElement,
-    canvasSize: { width: number, height: number },
     offset: { x: number, y: number },
     zoom: number,
     
-    currentFrame: number,
     data: number[][],
     numRows: number,
     numCols: number,
     selectedCell: { x: number; y: number } | null,
     interpolator: (t: number) => string
 ) {
-    console.log("Canvas: ",canvas)
-    const frameData = data[currentFrame]
-    if (!frameData) return
-    const squareSize = Math.min(canvasSize.width, canvasSize.height)
-    const offsetX = (canvasSize.width - squareSize) / 2
-    const offsetY = (canvasSize.height - squareSize) / 2
+    if (!data){
+        return
+    } 
+    const squareSize = Math.min(canvas.width, canvas.height)
+    const offsetX = (canvas.width - squareSize) / 2
+    const offsetY = (canvas.height - squareSize) / 2
 
     const cellWidth = squareSize / numCols
     const cellHeight = squareSize / numRows
@@ -24,7 +22,7 @@ export function drawHeatmap(
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    ctx.clearRect(0, 0, canvasSize.width, canvasSize.height)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.save()
     ctx.translate(offsetX + offset.x, offsetY + offset.y)
     ctx.scale(zoom, zoom)

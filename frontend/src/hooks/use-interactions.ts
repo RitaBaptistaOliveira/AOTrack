@@ -10,7 +10,6 @@ interface UseCanvasInteractionsProps<TDrawArgs> {
   externalCanvasRef: React.RefObject<HTMLCanvasElement | null>
   draw: (
     canvas: HTMLCanvasElement,
-    canvasSize: { width: number, height: number },
     offset: { x: number, y: number },
     zoom: number,
     drawArgs: TDrawArgs
@@ -30,7 +29,7 @@ export function useInteractions<TDrawArgs>({
   const offsetRef = useRef<Point>({ x: 0, y: 0 })
   const dragStartRef = useRef<Point | null>(null)
   const isDraggingRef = useRef(false)
-  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
+  // const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
   const [clickPosition, setClickPosition] = useState<Point | null>(null)
   const [hoverPos, setHoverPos] = useState<Point | null>(null)
 
@@ -38,15 +37,9 @@ export function useInteractions<TDrawArgs>({
 
   const scheduleDraw = () => {
     if (animationFrameRef.current == null) {
-      let framesDrawn = 0
       animationFrameRef.current = requestAnimationFrame(() => {
-        framesDrawn++
-        console.log("Frames drawn:", framesDrawn)
         animationFrameRef.current = null
-        console.time("draw")
         requestDraw()
-        console.timeEnd("draw")
-
       })
     }
   }
@@ -54,9 +47,8 @@ export function useInteractions<TDrawArgs>({
   const requestDraw = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    console.log(canvas, canvasSize, offsetRef.current, zoom, drawArgs)
-    draw(canvas, canvasSize, offsetRef.current, zoom, drawArgs)
-  }, [draw, canvasSize, zoom, drawArgs])
+    draw(canvas, offsetRef.current, zoom, drawArgs)
+  }, [draw, zoom, drawArgs])
 
   // Zoom controls
   const zoomIn = () => setZoom(z => Math.min(z * 1.2, 10))
@@ -74,7 +66,6 @@ export function useInteractions<TDrawArgs>({
     isDraggingRef.current = true
     if (mode === "select") {
       setClickPosition(coords)
-      console.log("Click position set:", coords)
     }
 
   }, [mode])
@@ -104,8 +95,6 @@ export function useInteractions<TDrawArgs>({
   }
 
   const handleMouseWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault()
-
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -146,7 +135,6 @@ export function useInteractions<TDrawArgs>({
   }, [])
 
   const resizeCanvas = useCallback(() => {
-
     const canvas = canvasRef.current
     if (!canvas) return
     const parent = canvas.parentElement
@@ -164,7 +152,6 @@ export function useInteractions<TDrawArgs>({
     if (ctx) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     }
-    setCanvasSize({ width: rect.width, height: rect.height })
   }, [])
 
   useEffect(() => {
@@ -173,13 +160,24 @@ export function useInteractions<TDrawArgs>({
     const parent = canvas.parentElement
     if (!parent) return
 
+    let resizeTimeout: ReturnType<typeof setTimeout> | null = null
+
     const resizeObserver = new ResizeObserver(() => {
-      resizeCanvas()
+      if (resizeTimeout) clearTimeout(resizeTimeout)
+
+      resizeTimeout = setTimeout(() => {
+        resizeCanvas()
+        scheduleDraw()
+      }, 6)
     })
     resizeObserver.observe(parent)
 
     return () => resizeObserver.disconnect()
   }, [])
+
+  useEffect(() => {
+    requestDraw()
+  }, [zoom])
 
 
   return {
@@ -187,7 +185,6 @@ export function useInteractions<TDrawArgs>({
     zoom,
     clickPosition,
     hoverPos,
-    canvasSize,
     offsetRef,
 
     setMode,
@@ -201,6 +198,7 @@ export function useInteractions<TDrawArgs>({
     handleMouseUp,
     handleMouseLeave,
     handleMouseWheel,
+    scheduleDraw,
     requestDraw
   }
 }
@@ -208,7 +206,6 @@ export function useInteractions<TDrawArgs>({
 export function useResizeCanvas(canvas: HTMLCanvasElement) {
   const parent = canvas.parentElement
   if (!parent) return
-  console.log("Resize")
   const dpr = window.devicePixelRatio || 1
   const width = parent.clientWidth
   const height = parent.clientHeight

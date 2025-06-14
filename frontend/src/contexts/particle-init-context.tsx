@@ -10,7 +10,6 @@ const ParticleInitContext = createContext<ParticleInitContextType | undefined>(u
 
 export const useParticleInit = (): ParticleInitContextType => {
   const context = useContext(ParticleInitContext);
-  console.log("useParticleInit context:", context);
   if (!context) {
     throw new Error("useParticleInit must be used within a ParticleInitProvider");
   }
@@ -40,8 +39,6 @@ export const ParticleInitProvider = ({ children }: ParticleInitProviderProps) =>
       initialize();
     }
   }, [init]);
-
-  console.log("ParticleInitProvider mounted, init:", init);
 
   return (
     <ParticleInitContext.Provider value={{ init }}>

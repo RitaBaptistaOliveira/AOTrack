@@ -32,7 +32,7 @@ export default function Visualization({
   const containerRef = useRef<HTMLDivElement>(null)
   const [currentFrame, setCurrentFrame] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
-  const [selectedCell, setSelectedCell] = useState<{ x: number; y: number } | null>(null)
+  const [selectedCell, setSelectedCell] = useState<{ x: number; y: number; value: number } | null>(null)
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number; value: number } | null>(null)
 
   const [showTooltips, setShowTooltips] = useState(true)
@@ -40,11 +40,10 @@ export default function Visualization({
   const [showControlBar, setShowControlBar] = useState(true)
 
   const prevFrameRef = useRef<number>(-1)
-  const prevSelectedCellRef = useRef<{ x: number; y: number } | null>(null)
+  const prevSelectedCellRef = useRef<{ x: number; y: number; value: number } | null>(null)
   const {
     mode,
     setMode,
-    canvasSize,
     clickPosition,
     hoverPos,
     offsetRef,
@@ -58,23 +57,15 @@ export default function Visualization({
     handleMouseUp,
     handleMouseWheel,
     downloadPNG,
-    requestDraw
+    requestDraw, 
+    scheduleDraw
   } = useInteractions({
     externalCanvasRef: canvasRef,
-    draw: (canvas, canvasSize, offset, zoom, drawArgs) => {
-      console.log("[DRAW TRIGGERED]", {
-        canvas,
-        canvasSize,
-        offset,
-        zoom,
-        drawArgs
-      })
+    draw: (canvas, offset, zoom, drawArgs) => {
       drawHeatmap(
         canvas,
-        canvasSize,
         offset,
         zoom,
-        drawArgs.currentFrame,
         drawArgs.data,
         drawArgs.numRows,
         drawArgs.numCols,
@@ -83,7 +74,6 @@ export default function Visualization({
       )
     },
     drawArgs: {
-      currentFrame: currentFrame,
       data: data[currentFrame],
       numRows: numRows,
       numCols: numCols,
@@ -97,38 +87,29 @@ export default function Visualization({
     if (currentFrame !== prevFrameRef.current) {
       prevFrameRef.current = currentFrame
       onFrameChange?.(currentFrame)
+      requestDraw()
     }
   }, [currentFrame])
 
   // Notify parent of cell selection only when selection actually changes
   useEffect(() => {
     const cellChanged =
-      selectedCell?.x !== prevSelectedCellRef.current?.x || selectedCell?.y !== prevSelectedCellRef.current?.y
+      selectedCell?.x !== prevSelectedCellRef.current?.x || selectedCell?.y !== prevSelectedCellRef.current?.y || selectedCell?.value !== prevSelectedCellRef.current?.value
 
     if (cellChanged) {
       prevSelectedCellRef.current = selectedCell
-
-      if (selectedCell) {
-        const value = data[currentFrame]?.[selectedCell.x]?.[selectedCell.y]
-        if (value !== undefined) {
-          onCellSelect?.({ ...selectedCell, value, frame: currentFrame })
-        }
-
+      if (selectedCell && selectedCell.value) {
       } else {
         onCellSelect?.(null)
       }
+      requestDraw()
     }
-    requestDraw()
-  }, [selectedCell, currentFrame, data])
+  }, [selectedCell, currentFrame])
 
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      requestDraw()
-    }, 1) // adjust as needed
-
-    return () => clearTimeout(timeout)
-  }, [zoom, canvasSize])
+    scheduleDraw()
+  }, [data])
 
 
   function generateColorGradient(min = 0, max = 1, steps = 20) {
@@ -142,11 +123,13 @@ export default function Visualization({
 
   const getCellFromCoordinates = useCallback(
     (canvasX: number, canvasY: number) => {
-      if (canvasSize.width === 0 || canvasSize.height === 0) return null
+      const canvas = canvasRef.current
+      if(!canvas) return
+      if (canvas.width === 0 || canvas.height === 0) return null
 
-      const squareSize = Math.min(canvasSize.width, canvasSize.height)
-      const offsetX = (canvasSize.width - squareSize) / 2
-      const offsetY = (canvasSize.height - squareSize) / 2
+      const squareSize = Math.min(canvas.width, canvas.height)
+      const offsetX = (canvas.width - squareSize) / 2
+      const offsetY = (canvas.height - squareSize) / 2
 
       const adjustedX = canvasX - offsetX
       const adjustedY = canvasY - offsetY
@@ -166,14 +149,21 @@ export default function Visualization({
       }
       return null
     },
-    [zoom, numCols, numRows, canvasSize],
+    [zoom, numCols, numRows],
   )
 
   // If the clicked position changes, so does the selected sell
   useEffect(() => {
     if (clickPosition) {
       const cell = getCellFromCoordinates(clickPosition.x, clickPosition.y)
-      setSelectedCell(cell)
+      if (cell) {
+        const value = data[currentFrame]?.[cell.x]?.[cell.y]
+        if (value !== undefined) {
+          setSelectedCell({ ...cell, value })
+        }
+      } else {
+        setSelectedCell(null)
+      }
     }
   }, [clickPosition])
 
@@ -192,8 +182,7 @@ export default function Visualization({
   }, [hoverPos])
 
   const goToFrame = (frame: number) => {
-    const frameNum = Math.max(0, Math.min(frame, numFrames - 1))
-    setCurrentFrame(frameNum)
+    setCurrentFrame(Math.max(0, Math.min(frame, numFrames - 1)))
   }
 
   useEffect(() => {

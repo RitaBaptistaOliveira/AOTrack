@@ -46,7 +46,6 @@ export function useCanvasInteractions() {
     setIsDragging(true)
     if (mode === "select") {
       setClickPosition(pt)
-      console.log("Click position set:", pt)
     }
 
   }, [mode])

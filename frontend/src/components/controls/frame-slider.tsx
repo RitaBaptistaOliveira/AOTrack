@@ -2,7 +2,6 @@ import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
-import { useChartInteraction } from "@/contexts/chart-interactions-context"
 
 interface FrameSliderProps {
   totalFrames: number
