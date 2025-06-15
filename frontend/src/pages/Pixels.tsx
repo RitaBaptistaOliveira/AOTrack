@@ -5,11 +5,17 @@ import { useAoHelper } from '@/hooks/use-ao-helper'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import Visualization from '@/components/charts/heatmap-chart'
 import FlapHeatmap from '@/components/charts/heatmap-flat-chart'
+import LineChart from '@/components/charts/line-graph'
+import HistogramChart from '@/components/charts/histogram-chart'
+import StatTable from '@/components/charts/stat-table'
 interface FrameProps {
   data: number[][][]
   numRows: number
   numCols: number
   numFrames: number
+}interface DataPoint {
+  x: number
+  y: number
 }
 
 export default function Pixels() {
@@ -18,22 +24,33 @@ export default function Pixels() {
   const [selectedPoint, setSelectedPoint] = useState<{ frame: number; index: number; value: number } | null>(null)
   const [currentFrame, setCurrentFrame] = useState(0)
   const [flattenedData, setFlattenedData] = useState<number[][]>([])
+  const [lineData, setLineData] = useState<{ x: number; y: number }[]>([])
   const [frameData, setFrameData] = useState<FrameProps | null>(null)
   const { getPixelIntensities } = useAoHelper();
   const { scaleType, intervalType } = useChartInteraction()
 
+
+
   function flattenFramesArray(data: number[][][], numRows: number, numCols: number): number[][] {
-  return data.map((frame) => {
-    const flattened: number[] = new Array(numRows * numCols)
-    for (let row = 0; row < numRows; row++) {
-      for (let col = 0; col < numCols; col++) {
-        const index = row * numCols + col
-        flattened[index] = frame[row][col]
+    return data.map((frame) => {
+      const flattened: number[] = new Array(numRows * numCols)
+      for (let row = 0; row < numRows; row++) {
+        for (let col = 0; col < numCols; col++) {
+          const index = row * numCols + col
+          flattened[index] = frame[row][col]
+        }
       }
-    }
-    return flattened
-  })
-}
+      return flattened
+    })
+  }
+
+  function getAverageIntensityData(data: number[][]): { x: number; y: number }[] {
+    return data.map((frame, i) => {
+      const sum = frame.reduce((acc, val) => acc + val, 0)
+      const avg = sum / frame.length
+      return { x: i, y: avg }
+    })
+  }
 
   const handleCellSelect = useCallback((cell: { x: number; y: number; value: number; frame: number } | null) => {
     setSelectedCell(cell)
@@ -50,6 +67,10 @@ export default function Pixels() {
   useEffect(() => {
     getFrames();
   }, [scaleType, intervalType]);
+
+  useEffect(() => {
+    console.log(selectedCell)
+  },[selectedCell])
 
   const getFrames = async () => {
     try {
@@ -72,8 +93,10 @@ export default function Pixels() {
         numFrames: numFrames,
       };
       setFrameData(processedData);
+      const flat = flattenFramesArray(frames, numRows, numCols)
+      setFlattenedData(flat)
+      setLineData(getAverageIntensityData(flat))
 
-      setFlattenedData(flattenFramesArray(frames, numRows, numCols))
     }
     catch (err) {
       console.log(`Error updating data: ${err instanceof Error ? err.message : "Unknown error"}`);
@@ -105,9 +128,9 @@ export default function Pixels() {
           />
         )}
       </GridItem>
-      <GridItem area="c">Bottom Left (C)</GridItem>
-      <GridItem area="d">Bottom Middle (D)</GridItem>
-      <GridItem area="e">Bottom Right (E)</GridItem>
+      <GridItem area="c"><LineChart data={lineData} /></GridItem>
+      <GridItem area="d"><HistogramChart data={lineData}/></GridItem>
+      <GridItem area="e"><StatTable data={lineData} /></GridItem>
     </DashboardGrid>
   )
 }

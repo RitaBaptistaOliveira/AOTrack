@@ -56,7 +56,7 @@ export default function Visualization({
     handleMouseUp,
     handleMouseWheel,
     downloadPNG,
-    requestDraw, 
+    requestDraw,
     scheduleDraw
   } = useInteractions({
     externalCanvasRef: canvasRef,
@@ -86,6 +86,16 @@ export default function Visualization({
     if (currentFrame !== prevFrameRef.current) {
       prevFrameRef.current = currentFrame
       onFrameChange?.(currentFrame)
+      if (clickPosition) {
+        const cell = getCellFromCoordinates(clickPosition.x, clickPosition.y)
+        if (cell) {
+          const value = data[currentFrame]?.[cell.x]?.[cell.y]
+          if (value !== undefined) {
+            setSelectedCell({ ...cell, value })
+            onCellSelect?.({ x: cell.x, y: cell.y, value: value, frame: currentFrame })
+          }
+        }
+      }
       requestDraw()
     }
   }, [currentFrame])
@@ -98,6 +108,7 @@ export default function Visualization({
     if (cellChanged) {
       prevSelectedCellRef.current = selectedCell
       if (selectedCell && selectedCell.value) {
+        onCellSelect?.({ x: selectedCell.x, y: selectedCell.y, value: selectedCell.value, frame: currentFrame })
       } else {
         onCellSelect?.(null)
       }
@@ -123,7 +134,7 @@ export default function Visualization({
   const getCellFromCoordinates = useCallback(
     (canvasX: number, canvasY: number) => {
       const canvas = canvasRef.current
-      if(!canvas) return
+      if (!canvas) return
       if (canvas.width === 0 || canvas.height === 0) return null
 
       const squareSize = Math.min(canvas.width, canvas.height)

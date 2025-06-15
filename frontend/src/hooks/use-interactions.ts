@@ -29,7 +29,7 @@ export function useInteractions<TDrawArgs>({
   const offsetRef = useRef<Point>({ x: 0, y: 0 })
   const dragStartRef = useRef<Point | null>(null)
   const isDraggingRef = useRef(false)
-  // const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
   const [clickPosition, setClickPosition] = useState<Point | null>(null)
   const [hoverPos, setHoverPos] = useState<Point | null>(null)
 
@@ -142,11 +142,14 @@ export function useInteractions<TDrawArgs>({
 
     const rect = parent.getBoundingClientRect()
     const dpr = window.devicePixelRatio || 1
+    const width = rect.width * dpr
+    const height = rect.height * dpr
 
     canvas.style.width = `${rect.width}px`
     canvas.style.height = `${rect.height}px`
-    canvas.width = rect.width * dpr
-    canvas.height = rect.height * dpr
+    canvas.width = width
+    canvas.height = height
+    setCanvasSize({ width, height })
 
     const ctx = canvas.getContext("2d")
     if (ctx) {
@@ -182,6 +185,7 @@ export function useInteractions<TDrawArgs>({
 
   return {
     mode,
+    canvasSize,
     zoom,
     clickPosition,
     hoverPos,
