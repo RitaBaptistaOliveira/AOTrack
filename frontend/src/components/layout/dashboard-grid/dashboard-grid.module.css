@@ -1,6 +1,5 @@
 .dashboardGrid {
   display: grid;
-  gap: 1rem;
   height: 100%;
 
   grid-template-columns: 1fr;
@@ -29,5 +28,15 @@
     grid-template-areas:
       "a b"
       "c d";
+  }
+
+  .dashboardGrid.defaultGrid {
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
+    grid-template-rows: 1fr 0.8fr 1.2fr;
+    grid-auto-flow: row;
+    grid-template-areas:
+      "a a a b b b"
+      "a a a b b b"
+      "c c d d e e";
   }
 }

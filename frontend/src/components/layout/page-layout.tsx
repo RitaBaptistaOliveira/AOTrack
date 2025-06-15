@@ -23,7 +23,7 @@ export default function Layout() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="flex flex-col h-screen overflow-hidden">
-        <header className="bg-card flex shrink-0 items-center shadow-sm justify-between px-4 py-2 transition-[width,height] ease-linear">
+        <header className="bg-card flex shrink-0 items-center shadow-sm justify-between px-4 py-1 transition-[width,height] ease-linear">
           <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="bg-sidebar mr-2 h-4" />
@@ -68,7 +68,7 @@ export default function Layout() {
           </div>
         </header>
 
-        <div className="flex flex-1 flex-col gap-4 p-4 min-h-0 overflow-hidden">
+        <div className="flex flex-1 flex-col p-2 min-h-0">
           <Outlet />
         </div>
       </SidebarInset>

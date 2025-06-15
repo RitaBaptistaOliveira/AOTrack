@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useAoHelper } from '@/hooks/use-ao-helper'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import Visualization from '@/components/charts/heatmap-chart'
+import FlapHeatmap from '@/components/charts/heatmap-flat-chart'
 interface FrameProps {
   data: number[][][]
   numRows: number
@@ -14,10 +15,25 @@ interface FrameProps {
 export default function Pixels() {
   const isLargeScreen = useMediaQuery({ minWidth: 768 })
   const [selectedCell, setSelectedCell] = useState<{ x: number; y: number; value: number; frame: number } | null>(null)
+  const [selectedPoint, setSelectedPoint] = useState<{ frame: number; index: number; value: number } | null>(null)
   const [currentFrame, setCurrentFrame] = useState(0)
+  const [flattenedData, setFlattenedData] = useState<number[][]>([])
   const [frameData, setFrameData] = useState<FrameProps | null>(null)
   const { getPixelIntensities } = useAoHelper();
   const { scaleType, intervalType } = useChartInteraction()
+
+  function flattenFramesArray(data: number[][][], numRows: number, numCols: number): number[][] {
+  return data.map((frame) => {
+    const flattened: number[] = new Array(numRows * numCols)
+    for (let row = 0; row < numRows; row++) {
+      for (let col = 0; col < numCols; col++) {
+        const index = row * numCols + col
+        flattened[index] = frame[row][col]
+      }
+    }
+    return flattened
+  })
+}
 
   const handleCellSelect = useCallback((cell: { x: number; y: number; value: number; frame: number } | null) => {
     setSelectedCell(cell)
@@ -25,6 +41,10 @@ export default function Pixels() {
 
   const handleFrameChange = useCallback((frame: number) => {
     setCurrentFrame(frame)
+  }, [])
+
+  const handlePointSelect = useCallback((point: { frame: number; index: number; value: number } | null) => {
+    setSelectedPoint(point)
   }, [])
 
   useEffect(() => {
@@ -52,6 +72,8 @@ export default function Pixels() {
         numFrames: numFrames,
       };
       setFrameData(processedData);
+
+      setFlattenedData(flattenFramesArray(frames, numRows, numCols))
     }
     catch (err) {
       console.log(`Error updating data: ${err instanceof Error ? err.message : "Unknown error"}`);
@@ -59,9 +81,10 @@ export default function Pixels() {
   };
 
   return (
-    <DashboardGrid variant="simple">
+    <DashboardGrid variant="default">
+
       <GridItem area="a">
-        {frameData &&
+        {frameData && (
           <Visualization
             data={frameData.data}
             numRows={frameData.numRows}
@@ -69,24 +92,22 @@ export default function Pixels() {
             numFrames={frameData.numFrames}
             onCellSelect={handleCellSelect}
             onFrameChange={handleFrameChange}
-          />}
+          />
+        )}
       </GridItem>
-      <GridItem area="b">A</GridItem>
-      <GridItem area="c">E (Right Middle)</GridItem>
-
-      {isLargeScreen ? (
-        <div style={{ gridArea: "de" }} className={`flex gap-4 rounded`}>
-          <GridItem area="d" className='flex-1'>(Left Bottom Left)</GridItem>
-          <GridItem area="e" className='flex-1'>(Left Bottom Right)</GridItem>
-        </div>
-      ) : (
-        <>
-          <GridItem area="d">B (Left Bottom Left)</GridItem>
-          <GridItem area="e">C (Left Bottom Right)</GridItem>
-        </>
-      )}
-
-      <GridItem area="f">F (Right Bottom)</GridItem>
+      <GridItem area="b">
+        {frameData && (
+          <FlapHeatmap
+            data={flattenedData}
+            numIndexes={frameData.numRows * frameData.numCols}
+            numFrames={frameData.numFrames}
+            onPointSelect={handlePointSelect}
+          />
+        )}
+      </GridItem>
+      <GridItem area="c">Bottom Left (C)</GridItem>
+      <GridItem area="d">Bottom Middle (D)</GridItem>
+      <GridItem area="e">Bottom Right (E)</GridItem>
     </DashboardGrid>
   )
 }

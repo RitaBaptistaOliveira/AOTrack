@@ -29,7 +29,6 @@ export default function Visualization({
 }: HeatmapVisualizationProps) {
   const { interpolator } = useChartInteraction()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
   const [currentFrame, setCurrentFrame] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [selectedCell, setSelectedCell] = useState<{ x: number; y: number; value: number } | null>(null)
@@ -205,10 +204,10 @@ export default function Visualization({
       {/* Header */}
       <div className="flex justify-between items-center flex-shrink-0">
         <h2 className="text-lg font-semibold">Heatmap</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           <DropdownGroup />
           <Button variant="ghost" size="icon" onClick={() => setShowControlBar(!showControlBar)}>
-            {showControlBar ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {showControlBar ? <ChevronUp /> : <ChevronDown />}
           </Button>
         </div>
       </div>
@@ -230,7 +229,7 @@ export default function Visualization({
 
       {/* Canvas Container */}
       <div className="flex-1 relative min-h-0">
-        <div ref={containerRef} className="w-full h-full border-2 border-gray-300 relative">
+        <div className="w-full h-full border-2 border-gray-300 relative">
           <canvas
             ref={canvasRef}
             onMouseDown={handleMouseDown}

@@ -28,8 +28,8 @@ export default function DropdownGroup() {
           <SelectItem value="squared">Squared</SelectItem>
           <SelectItem value="asinh">ASINH</SelectItem>
           <SelectItem value="sinh">Sinh</SelectItem>
-          <SelectItem value="histequal">Histogram Equalization</SelectItem>
-          <SelectItem value="logexp">Log Exponential</SelectItem>
+          <SelectItem value="histequal">Hist Eq.</SelectItem>
+          <SelectItem value="logexp">Log Exp</SelectItem>
         </SelectContent>
       </Select>
 
