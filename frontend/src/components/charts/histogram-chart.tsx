@@ -8,9 +8,10 @@ interface DataPoint {
 
 interface HistogramChartProps {
     data: DataPoint[]
+    selectedPoint?: DataPoint[]
 }
 
-export default function HistogramChart({ data }: HistogramChartProps) {
+export default function HistogramChart({ data, selectedPoint }: HistogramChartProps) {
     const containerRef = useRef<HTMLDivElement | null>(null)
     const svgRef = useRef<SVGSVGElement | null>(null)
     const [size, setSize] = useState({ width: 0, height: 0 })
@@ -41,8 +42,7 @@ export default function HistogramChart({ data }: HistogramChartProps) {
         const svg = d3.select(svgRef.current)
         svg.selectAll("*").remove()
 
-        svg
-            .append("defs")
+        svg.append("defs")
             .append("clipPath")
             .attr("id", "clip")
             .append("rect")
@@ -51,8 +51,10 @@ export default function HistogramChart({ data }: HistogramChartProps) {
 
         const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`)
         const chartContent = g.append("g").attr("clip-path", "url(#clip)")
-
-        const allY = data.map((d) => d.y)
+        let selectedBarGroup: d3.Selection<SVGRectElement, d3.Bin<number, number>, SVGGElement, unknown>;
+        const dataY = data.map((d) => d.y);
+        const selectedY = selectedPoint?.map((d) => d.y) ?? [];
+        const allY = [...dataY, ...selectedY];
 
         const xScale = d3
             .scaleLinear()
@@ -60,13 +62,22 @@ export default function HistogramChart({ data }: HistogramChartProps) {
             .nice()
             .range([0, innerWidth])
 
-        const mean = d3.mean(allY)!
-        const std = d3.deviation(allY)!
+        const mean = d3.mean(dataY)!
+        const std = d3.deviation(dataY)!
+
+        const domain = d3.extent(allY) as [number, number]
+        const binStep = (domain[1] - domain[0]) / numBins
+        const binThresholds = d3.range(domain[0], domain[1], binStep)
 
         const bins = d3
             .bin()
-            .domain(xScale.domain() as [number, number])
-            .thresholds(numBins)(allY)
+            .domain(domain)
+            .thresholds(binThresholds)(dataY)
+
+        const selectedBins = d3
+            .bin()
+            .domain(domain)
+            .thresholds(binThresholds)(selectedY)
 
         const yScale = d3
             .scaleLinear()
@@ -129,6 +140,58 @@ export default function HistogramChart({ data }: HistogramChartProps) {
             .attr("stroke-width", 2)
             .attr("d", lineGen)
 
+        console.log("[HistogramChart] Rendering chart")
+        console.log("[HistogramChart] Data count:", data.length)
+        console.log("[HistogramChart] Selected points:", selectedPoint)
+
+        if (selectedPoint?.length) {
+            const selectedY = selectedPoint.map((d) => d.y);
+
+            const selMean = d3.mean(selectedY)!
+            const selStd = d3.deviation(selectedY)!
+
+            const selNormalDensity = (x: number) => {
+                const coef = 1 / (selStd * Math.sqrt(2 * Math.PI))
+                const exp = Math.exp(-0.5 * Math.pow((x - selMean) / selStd, 2))
+                return coef * exp
+            }
+
+            const selScaleFactor = d3.max(bins, (d) => d.length)! / selNormalDensity(selMean)
+            const selDensityData = d3
+                .range(xScale.domain()[0], xScale.domain()[1], (xScale.domain()[1] - xScale.domain()[0]) / 100)
+                .map((x) => ({
+                    x,
+                    y: selNormalDensity(x) * selScaleFactor,
+                }))
+
+            chartContent
+                .append("path")
+                .datum(selDensityData)
+                .attr("fill", "none")
+                .attr("stroke", "orange")
+                .attr("stroke-width", 2)
+                .attr("stroke-dasharray", "5 2")
+                .attr("d", d3.line<{ x: number; y: number }>()
+                    .x((d) => xScale(d.x))
+                    .y((d) => yScale(d.y)))
+
+            // Assign properly here
+            selectedBarGroup = chartContent
+                .selectAll<SVGRectElement, d3.Bin<number, number>>("rect.selected-bar")
+                .data(selectedBins)
+                .enter()
+                .append("rect")
+                .attr("class", "selected-bar")
+                .attr("x", (d) => xScale(d.x0!))
+                .attr("y", (d) => yScale(d.length))
+                .attr("width", (d) => xScale(d.x1!) - xScale(d.x0!) - 1)
+                .attr("height", (d) => innerHeight - yScale(d.length))
+                .attr("fill", "orange")
+                .attr("fill-opacity", 0.6);
+        } else {
+            // Assign an empty selection with correct type (not inferred as never)
+            selectedBarGroup = chartContent.selectAll<SVGRectElement, d3.Bin<number, number>>("rect.__none__");
+        }
         // Labels
         svg
             .append("text")
@@ -180,10 +243,24 @@ export default function HistogramChart({ data }: HistogramChartProps) {
                     .y((d) => yScale(d.y))
 
                 curvePath.attr("d", zoomedLine(densityData))
+
+                selectedBarGroup
+                    .attr("x", (d) => zx(d.x0!))
+                    .attr("width", (d) => zx(d.x1!) - zx(d.x0!) - 1)
+
+                const orangeLine = d3.line<{ x: number; y: number }>()
+                    .x((d) => zx(d.x))
+                    .y((d) => yScale(d.y));
+
+                chartContent.selectAll("path")
+                    .filter((d, i, nodes) => d3.select(nodes[i]).attr("stroke") === "orange")
+                    .attr("d", function (d: any) {
+                        return orangeLine(d);
+                    });
             })
 
         svg.call(zoom).call(zoom.transform, d3.zoomIdentity)
-    }, [data, size, numBins])
+    }, [data, size, numBins, selectedPoint])
 
     return (
         <div className="flex flex-col h-full">

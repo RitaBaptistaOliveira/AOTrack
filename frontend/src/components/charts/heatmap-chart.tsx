@@ -107,7 +107,8 @@ export default function Visualization({
 
     if (cellChanged) {
       prevSelectedCellRef.current = selectedCell
-      if (selectedCell && selectedCell.value) {
+      console.log(selectedCell)
+      if (selectedCell) {
         onCellSelect?.({ x: selectedCell.x, y: selectedCell.y, value: selectedCell.value, frame: currentFrame })
       } else {
         onCellSelect?.(null)

@@ -53,6 +53,7 @@ export default function Pixels() {
   }
 
   const handleCellSelect = useCallback((cell: { x: number; y: number; value: number; frame: number } | null) => {
+    console.log("CELL SELECTION CHANGE to: ", cell)
     setSelectedCell(cell)
     if (cell && frameData) {
       const intensities = frameData.data.map((frame, i) => ({
@@ -73,6 +74,7 @@ export default function Pixels() {
   }, [])
 
   const handlePointSelect = useCallback((point: { frame: number; index: number; value: number } | null) => {
+    console.log("POINT SELECTION CHANGE")
     setSelectedPoint(point)
     if (point && frameData) {
       const row = Math.floor(point.index / frameData.numCols);
@@ -154,7 +156,7 @@ export default function Pixels() {
         )}
       </GridItem>
       <GridItem area="c"><LineChart data={lineData} selectPoint1Data={intensityOverTime} /></GridItem>
-      <GridItem area="d"><HistogramChart data={lineData} /></GridItem>
+      <GridItem area="d"><HistogramChart data={lineData} selectedPoint={intensityOverTime} /></GridItem>
       <GridItem area="e"><StatTable data={lineData} /></GridItem>
     </DashboardGrid>
   )
