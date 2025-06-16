@@ -8,13 +8,17 @@ interface DataPoint {
 
 interface LineChartProps {
   data: DataPoint[]
+  selectPoint1Data?: DataPoint[]
+  selectPoint2Data?: DataPoint[]
 }
 
-export default function LineChart({ data }: LineChartProps) {
+export default function LineChart({ data, selectPoint1Data, selectPoint2Data }: LineChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
   const tooltipRef = useRef<HTMLDivElement | null>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
+
+
 
   useEffect(() => {
     const observer = new ResizeObserver((entries) => {
@@ -32,15 +36,9 @@ export default function LineChart({ data }: LineChartProps) {
   }, [])
 
   useEffect(() => {
-    if (!svgRef.current || !data.length) return
-
     const margin = { top: 20, right: 20, bottom: 30, left: 40 }
     const innerWidth = size.width - margin.left - margin.right
     const innerHeight = size.height - margin.top - margin.bottom
-
-    const minY = d3.min(data, d => d.y)!
-    const maxY = d3.max(data, d => d.y)!
-    const avgY = d3.mean(data, d => d.y)!
 
     const svg = d3.select(svgRef.current)
     svg.selectAll("*").remove()
@@ -72,9 +70,8 @@ export default function LineChart({ data }: LineChartProps) {
       .x((d) => xScale(d.x))
       .y((d) => yScale(d.y))
 
-    const g = svg
-      .append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`)
+    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`)
+
     g.append("g")
       .attr("transform", `translate(${innerWidth - 80}, 0)`)
       .call((legend) => {
@@ -103,41 +100,43 @@ export default function LineChart({ data }: LineChartProps) {
     const chartContent = g.append("g").attr("clip-path", "url(#clip)")
 
 
-    const minLine = chartContent
-      .append("line")
-      .attr("x1", 0)
-      .attr("x2", innerWidth)
-      .attr("stroke", "green")
-      .attr("stroke-dasharray", "4 2")
+    function drawLineWithStats(dataSet: DataPoint[], color: string) {
+      chartContent.append("path")
+        .datum(dataSet)
+        .attr("class", `line-${color}`)
+        .attr("fill", "none")
+        .attr("stroke", color)
+        .attr("stroke-width", 2)
+        .attr("d", line);
 
-    const maxLine = chartContent
-      .append("line")
-      .attr("x1", 0)
-      .attr("x2", innerWidth)
-      .attr("stroke", "red")
-      .attr("stroke-dasharray", "4 2")
+      const minY = d3.min(dataSet, d => d.y)!;
+      const maxY = d3.max(dataSet, d => d.y)!;
+      const avgY = d3.mean(dataSet, d => d.y)!;
 
-    const avgLine = chartContent
-      .append("line")
-      .attr("x1", 0)
-      .attr("x2", innerWidth)
-      .attr("stroke", "orange")
-      .attr("stroke-dasharray", "4 2")
+      ["min", "max", "avg"].forEach((stat) => {
+        const yVal = stat === "min" ? minY : stat === "max" ? maxY : avgY;
+        chartContent.append("line")
+          .attr("x1", 0)
+          .attr("x2", innerWidth)
+          .attr("y1", yScale(yVal))
+          .attr("y2", yScale(yVal))
+          .attr("stroke", color)
+          .attr("stroke-dasharray", "4 2");
+      });
 
-    const path = chartContent
-      .append("path")
-      .datum(data)
-      .attr("fill", "none")
-      .attr("stroke", "steelblue")
-      .attr("stroke-width", 2)
-      .attr("d", line)
+      const focus = chartContent.append("circle")
+        .attr("r", 4)
+        .attr("fill", color)
+        .style("display", "none");
 
-    const focusCircle = chartContent
-      .append("circle")
-      .attr("r", 4)
-      .attr("fill", "red")
-      .style("display", "none")
+      return { focus, data: dataSet, color };
+    }
 
+    const main = drawLineWithStats(data, "steelblue");
+    const p1 = selectPoint1Data ? drawLineWithStats(selectPoint1Data, "green") : null;
+    const p2 = selectPoint2Data ? drawLineWithStats(selectPoint2Data, "purple") : null;
+
+    const tooltip = tooltipRef.current;
     const overlay = chartContent
       .append("rect")
       .attr("width", innerWidth)
@@ -146,32 +145,37 @@ export default function LineChart({ data }: LineChartProps) {
       .style("cursor", "crosshair")
       .on("mousemove", function (event) {
         const [mouseX] = d3.pointer(event)
+        const zx = xScale;
+        const zy = yScale;
         const x0 = xScale.invert(mouseX)
         const bisect = d3.bisector((d: DataPoint) => d.x).left
-        const idx = bisect(data, x0)
-        const d0 = data[Math.max(0, Math.min(idx, data.length - 1))]
 
-        if (!d0) return
+        const hoverFor = (series: typeof main) => {
+          const idx = bisect(series.data, x0);
+          const d0 = series.data[Math.max(0, Math.min(idx, series.data.length - 1))];
+          const cx = zx(d0.x);
+          const cy = zy(d0.y);
+          series.focus.attr("cx", cx).attr("cy", cy).style("display", "block");
+          return d0;
+        };
 
-        const cx = xScale(d0.x)
-        const cy = yScale(d0.y)
+        const dMain = hoverFor(main);
+        if (p1) hoverFor(p1);
+        if (p2) hoverFor(p2);
 
-        focusCircle
-          .attr("cx", cx)
-          .attr("cy", cy)
-          .style("display", "block")
-
-        const tooltip = tooltipRef.current
         if (tooltip) {
-          tooltip.style.display = "block"
-          tooltip.style.left = `${margin.left + cx + 10}px`
-          tooltip.style.top = `${margin.top + cy - 20}px`
-          tooltip.innerHTML = `x: ${d0.x}<br/>y: ${d0.y}`
+          tooltip.style.display = "block";
+          tooltip.style.left = `${margin.left + zx(dMain.x) + 10}px`;
+          tooltip.style.top = `${margin.top + zy(dMain.y) - 20}px`;
+          tooltip.innerHTML = `x: ${dMain.x}<br/>y: ${dMain.y}`;
         }
+
       })
       .on("mouseleave", () => {
-        focusCircle.style("display", "none")
-        if (tooltipRef.current) tooltipRef.current.style.display = "none"
+        main.focus.style("display", "none");
+        p1?.focus.style("display", "none");
+        p2?.focus.style("display", "none");
+        if (tooltip) tooltip.style.display = "none";
       })
 
     // --- Zoom Behavior ---
@@ -180,10 +184,6 @@ export default function LineChart({ data }: LineChartProps) {
       .translateExtent([[0, 0], [size.width, size.height]])
       .extent([[0, 0], [size.width, size.height]])
       .on("zoom", (event) => {
-        focusCircle.style("display", "none")
-        if (tooltipRef.current) {
-          tooltipRef.current.style.display = "none"
-        }
         const transform = event.transform
 
         const zx = transform.rescaleX(xScale)
@@ -192,49 +192,60 @@ export default function LineChart({ data }: LineChartProps) {
         xAxisG.call(d3.axisBottom(zx))
         yAxisG.call(d3.axisLeft(zy))
 
-        path.attr("d", line.x((d) => zx(d.x)).y((d) => zy(d.y)))
-        minLine
-          .attr("y1", zy(minY))
-          .attr("y2", zy(minY))
+        const updateLine = (series: { data: DataPoint[], color: string, focus: d3.Selection<SVGCircleElement, unknown, null, undefined> }) => {
+          const lineGen = d3.line<DataPoint>()
+            .x(d => zx(d.x))
+            .y(d => zy(d.y));
 
-        maxLine
-          .attr("y1", zy(maxY))
-          .attr("y2", zy(maxY))
+          chartContent.select(`.line-${series.color}`)
+            .attr("d", lineGen(series.data));
 
-        avgLine
-          .attr("y1", zy(avgY))
-          .attr("y2", zy(avgY))
+          series.focus.style("display", "none");
+        };
+
+        [main, p1, p2].forEach((s) => s && updateLine(s));
+
+        chartContent.selectAll("line")
+          .attr("x1", 0)
+          .attr("x2", innerWidth)
+          .attr("y1", function () {
+            const yVal = zy.invert(+d3.select(this).attr("y1"));
+            return zy(yVal);
+          })
+          .attr("y2", function () {
+            const yVal = zy.invert(+d3.select(this).attr("y2"));
+            return zy(yVal);
+          });
 
         overlay.on("mousemove", function (event) {
           const [mouseX] = d3.pointer(event)
           const x0 = zx.invert(mouseX)
           const bisect = d3.bisector((d: DataPoint) => d.x).left
-          const idx = bisect(data, x0)
-          const d0 = data[Math.max(0, Math.min(idx, data.length - 1))]
+          const hoverFor = (series: typeof main) => {
+            const idx = bisect(series.data, x0);
+            const d0 = series.data[Math.max(0, Math.min(idx, series.data.length - 1))];
+            const cx = zx(d0.x);
+            const cy = zy(d0.y);
+            series.focus.attr("cx", cx).attr("cy", cy).style("display", "block");
+            return d0;
+          };
 
-          if (!d0) return
+          const dMain = hoverFor(main);
+          if (p1) hoverFor(p1);
+          if (p2) hoverFor(p2);
 
-          const cx = zx(d0.x)
-          const cy = zy(d0.y)
-
-          focusCircle
-            .attr("cx", cx)
-            .attr("cy", cy)
-            .style("display", "block")
-
-          const tooltip = tooltipRef.current
           if (tooltip) {
-            tooltip.style.display = "block"
-            tooltip.style.left = `${margin.left + cx + 10}px`
-            tooltip.style.top = `${margin.top + cy - 20}px`
-            tooltip.innerHTML = `x: ${d0.x}<br/>y: ${d0.y}`
+            tooltip.style.display = "block";
+            tooltip.style.left = `${margin.left + zx(dMain.x) + 10}px`;
+            tooltip.style.top = `${margin.top + zy(dMain.y) - 20}px`;
+            tooltip.innerHTML = `x: ${dMain.x}<br/>y: ${dMain.y}`;
           }
         })
       })
 
-    svg.call(zoom).call(zoom.transform, d3.zoomIdentity)
+    svg.call(zoom as any).call((zoom as any).transform, d3.zoomIdentity);
 
-  }, [data, size])
+  }, [data, size, selectPoint1Data, selectPoint2Data,])
 
   return (
     <div ref={containerRef} className="relative h-full w-full flex">

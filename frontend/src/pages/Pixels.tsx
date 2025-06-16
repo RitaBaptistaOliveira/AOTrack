@@ -28,7 +28,7 @@ export default function Pixels() {
   const [frameData, setFrameData] = useState<FrameProps | null>(null)
   const { getPixelIntensities } = useAoHelper();
   const { scaleType, intervalType } = useChartInteraction()
-
+  const [intensityOverTime, setIntensityOverTime] = useState<{ x: number; y: number }[]>([]);
 
 
   function flattenFramesArray(data: number[][][], numRows: number, numCols: number): number[][] {
@@ -54,7 +54,19 @@ export default function Pixels() {
 
   const handleCellSelect = useCallback((cell: { x: number; y: number; value: number; frame: number } | null) => {
     setSelectedCell(cell)
-  }, [])
+    if (cell && frameData) {
+      const intensities = frameData.data.map((frame, i) => ({
+        x: i,
+        y: frame[cell.x][cell.y]
+      }));
+      const ind = cell.x * frameData.numCols + cell.y
+      setIntensityOverTime(intensities);
+      setCurrentFrame(cell.frame)
+      setSelectedPoint({frame: cell.frame, index: ind, value: cell.value})
+    } else {
+      setIntensityOverTime([]);
+    }
+  }, [frameData])
 
   const handleFrameChange = useCallback((frame: number) => {
     setCurrentFrame(frame)
@@ -62,7 +74,20 @@ export default function Pixels() {
 
   const handlePointSelect = useCallback((point: { frame: number; index: number; value: number } | null) => {
     setSelectedPoint(point)
-  }, [])
+    if (point && frameData) {
+      const row = Math.floor(point.index / frameData.numCols);
+      const col = point.index % frameData.numCols;
+      const intensities = frameData.data.map((frame, i) => ({
+        x: i,
+        y: frame[row][col]
+      }));
+      setIntensityOverTime(intensities);
+      setCurrentFrame(point.frame)
+      setSelectedCell({x: row, y:col, value: frameData.data[point.frame][row][col], frame: point.frame})
+    } else {
+      setIntensityOverTime([]);
+    }
+  }, [frameData])
 
   useEffect(() => {
     getFrames();
@@ -70,7 +95,7 @@ export default function Pixels() {
 
   useEffect(() => {
     console.log(selectedCell)
-  },[selectedCell])
+  }, [selectedCell])
 
   const getFrames = async () => {
     try {
@@ -128,8 +153,8 @@ export default function Pixels() {
           />
         )}
       </GridItem>
-      <GridItem area="c"><LineChart data={lineData} /></GridItem>
-      <GridItem area="d"><HistogramChart data={lineData}/></GridItem>
+      <GridItem area="c"><LineChart data={lineData} selectPoint1Data={intensityOverTime} /></GridItem>
+      <GridItem area="d"><HistogramChart data={lineData} /></GridItem>
       <GridItem area="e"><StatTable data={lineData} /></GridItem>
     </DashboardGrid>
   )
