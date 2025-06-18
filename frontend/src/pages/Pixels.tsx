@@ -155,7 +155,7 @@ export default function Pixels() {
           />
         )}
       </GridItem>
-      <GridItem area="c"><LineChart data={lineData} selectPoint1Data={intensityOverTime} /></GridItem>
+      <GridItem area="c"><LineChart data={lineData} selectPoint={intensityOverTime} /></GridItem>
       <GridItem area="d"><HistogramChart data={lineData} selectedPoint={intensityOverTime} /></GridItem>
       <GridItem area="e"><StatTable data={lineData} /></GridItem>
     </DashboardGrid>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import * as d3 from "d3"
+import { createPortal } from "react-dom"
 
 interface DataPoint {
     x: number
@@ -16,6 +17,84 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
     const svgRef = useRef<SVGSVGElement | null>(null)
     const [size, setSize] = useState({ width: 0, height: 0 })
     const [numBins, setNumBins] = useState(30)
+    const [hoverInfo, setHoverInfo] = useState<null | {
+        type: 'bar' | 'curve' | 'mean' | 'median' | 'mode'
+        value: any
+        x: number
+        y: number
+    }>(null)
+
+    function kernelEpanechnikov(k: number) {
+        return function (v: number) {
+            return Math.abs(v /= k) <= 1 ? 0.75 * (1 - v * v) / k : 0;
+        };
+    }
+
+    function kernelDensityEstimator(kernel: (v: number) => number, xValues: number[]) {
+        return function (sample: number[]) {
+            return xValues.map(x => ({
+                x,
+                y: d3.mean(sample, v => kernel(x - v))!
+            }));
+        };
+    }
+
+
+    function genKDE(data: number[], bins: d3.Bin<number, number>[], domain: [number, number]) {
+        const [xStart, xEnd] = domain;
+        const xValues = d3.range(xStart, xEnd, (xEnd - xStart) / 100);
+        const range = xEnd - xStart;
+        const bandwidth = range * 0.1; // 10% of data range
+        const kde = kernelDensityEstimator(kernelEpanechnikov(bandwidth), xValues);
+        const rawKDE = kde(data);
+        const scaleFactor = d3.max(bins, b => b.length)! / d3.max(rawKDE, d => d.y || 1)!;
+        const scaledKDE = rawKDE.map(d => ({
+            x: d.x,
+            y: Math.max(0, d.y * scaleFactor || 0),
+        }));
+
+        const threshold = 0.1;
+
+        // Find start and end of significant density
+        const first = scaledKDE.findIndex(d => d.y > threshold);
+        const last = scaledKDE.length - 1 - [...scaledKDE].reverse().findIndex(d => d.y > threshold);
+
+        const lineData = [];
+
+        if (first > 0) {
+            // Add leading zero point
+            lineData.push({ x: scaledKDE[first - 1].x, y: 0 });
+        }
+
+        lineData.push(...scaledKDE.slice(first, last + 1));
+
+        if (last < scaledKDE.length - 1) {
+            // Add trailing zero point
+            lineData.push({ x: scaledKDE[last + 1].x, y: 0 });
+        }
+
+        const mean = d3.mean(data)!;
+        const median = d3.median(data)!;
+        const mode = scaledKDE.reduce((a, b) => (a.y > b.y ? a : b)).x;
+
+        return { mean, median, mode, lineData };
+    }
+
+    function getYAtX(lineData: { x: number; y: number }[], targetX: number): number {
+        for (let i = 1; i < lineData.length; i++) {
+            const prev = lineData[i - 1];
+            const curr = lineData[i];
+
+            if (curr.x >= targetX) {
+                const t = (targetX - prev.x) / (curr.x - prev.x);
+                return prev.y + t * (curr.y - prev.y); // linear interpolation
+            }
+        }
+
+        // If targetX is outside the lineData range
+        return lineData[lineData.length - 1].y;
+    }
+
 
     useEffect(() => {
         const observer = new ResizeObserver((entries) => {
@@ -35,228 +114,291 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
     useEffect(() => {
         if (!svgRef.current || !data.length || size.width === 0 || size.height === 0) return
 
-        const margin = { top: 20, right: 20, bottom: 30, left: 40 }
-        const innerWidth = size.width - margin.left - margin.right
-        const innerHeight = size.height - margin.top - margin.bottom
+        const margin = { top: 20, right: 30, bottom: 20, left: 20 }
+        const width = size.width - margin.left - margin.right
+        const height = size.height - margin.top - margin.bottom
 
         const svg = d3.select(svgRef.current)
         svg.selectAll("*").remove()
 
-        svg.append("defs")
-            .append("clipPath")
-            .attr("id", "clip")
-            .append("rect")
-            .attr("width", innerWidth)
-            .attr("height", innerHeight)
-
         const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`)
-        const chartContent = g.append("g").attr("clip-path", "url(#clip)")
-        let selectedBarGroup: d3.Selection<SVGRectElement, d3.Bin<number, number>, SVGGElement, unknown>;
-        const dataY = data.map((d) => d.y);
-        const selectedY = selectedPoint?.map((d) => d.y) ?? [];
-        const allY = [...dataY, ...selectedY];
+        const chartContent = g.append("g")
 
-        const xScale = d3
-            .scaleLinear()
-            .domain(d3.extent(allY) as [number, number])
-            .nice()
-            .range([0, innerWidth])
+        // Intensities
+        const intensitiesDefault = data.map((d) => d.y);
+        const intensitiesPoint = selectedPoint?.map((d) => d.y);
 
-        const mean = d3.mean(dataY)!
-        const std = d3.deviation(dataY)!
+        // const selectedY = selectedPoint?.map((d) => d.y) ?? [];
+        // const allY = [...dataY, ...selectedY];
+        const allY = [...intensitiesDefault, ...(intensitiesPoint ?? [])];
 
-        const domain = d3.extent(allY) as [number, number]
-        const binStep = (domain[1] - domain[0]) / numBins
-        const binThresholds = d3.range(domain[0], domain[1], binStep)
+        // X and Y Axis
+        const [minX, maxX] = d3.extent(allY) as [number, number]
+        const padding = (maxX - minX) * 0.05 // 5% padding on each side
+        const paddedDomain: [number, number] = [d3.max([0, minX - padding]) ?? 0, maxX + padding]
 
-        const bins = d3
-            .bin()
-            .domain(domain)
-            .thresholds(binThresholds)(dataY)
+        //Bins
+        const binGenerator = d3.bin().domain(paddedDomain).thresholds(numBins)
 
-        const selectedBins = d3
-            .bin()
-            .domain(domain)
-            .thresholds(binThresholds)(selectedY)
+        const binDefault = binGenerator(intensitiesDefault)
+        const binPoint = binGenerator(intensitiesPoint ?? [])
+        const allBins = [...binDefault, ...binPoint]
+        const maxBinHeight = d3.max(allBins, b => b.length) ?? 0
 
-        const yScale = d3
-            .scaleLinear()
-            .domain([0, d3.max(bins, (d) => d.length)!])
-            .nice()
-            .range([innerHeight, 0])
+        const xScale = d3.scaleLinear().domain(paddedDomain).range([0, width])
+        const yScale = d3.scaleLinear().domain([0, maxBinHeight]).range([height, 0])
 
-        const xAxisG = g
-            .append("g")
-            .attr("transform", `translate(0,${innerHeight})`)
-            .call(d3.axisBottom(xScale))
+        const xAxis = svg.append("g").attr("transform", `translate(${margin.left},${height + margin.top})`).attr("class", "x-axis").call(d3.axisBottom(xScale));
+        const yAxis = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`).attr("class", "y-axis").call(d3.axisLeft(yScale));
 
-        g.append("g").call(d3.axisLeft(yScale))
+        // const genPDF = (data: number[], bins: d3.Bin<number, number>[]): { mean: number; lineData: { x: number; y: number }[] } => {
+        //     const std = d3.deviation(data)!
+        //     const mean = d3.mean(data)!
+        //     const [min, max] = d3.extent(data) as [number, number]
+        //     const pad = (max - min) * 0.05 // 5% padding on each side
+        //     const padDomain: [number, number] = [min - pad, max + pad]
+        //     const normalPDF = (x: number) =>
+        //         (1 / (std * Math.sqrt(2 * Math.PI))) *
+        //         Math.exp(-((x - mean) ** 2) / (2 * std ** 2))
 
-        const barGroup = chartContent
-            .selectAll("rect")
-            .data(bins)
+        //     const xValues = d3.range(padDomain[0], padDomain[1], (padDomain[1] - padDomain[0]) / 100)
+        //     const scaleFactor = d3.max(bins, (d) => d.length)! / normalPDF(mean)
+        //     const lineData = xValues.map(x => ({
+        //         x,
+        //         y: normalPDF(x) * scaleFactor,
+        //     }))
+        //     return {
+        //         mean,
+        //         lineData,
+        //     }
+        // }
+
+        const line = d3.line<{ x: number, y: number }>()
+            .x(d => xScale(d.x))
+            .y(d => yScale(d.y))
+
+        const { mean, median, mode, lineData } = genKDE(intensitiesDefault, binDefault, paddedDomain)
+
+        chartContent.selectAll("hist")
+            .data(binDefault)
             .enter()
             .append("rect")
-            .attr("x", (d) => xScale(d.x0!))
-            .attr("y", (d) => yScale(d.length))
-            .attr("width", (d) => xScale(d.x1!) - xScale(d.x0!) - 1)
-            .attr("height", (d) => innerHeight - yScale(d.length))
+            .attr("class", "hist")
+            .attr("x", d => xScale(d.x0!))
+            .attr("width", d => xScale(d.x1!) - xScale(d.x0!))
+            .attr("y", d => yScale(d.length))
+            .attr("height", d => height - yScale(d.length))
             .attr("fill", "steelblue")
+            .attr("opacity", 0.6);
 
-        const meanLine = chartContent
-            .append("line")
-            .attr("x1", xScale(mean))
-            .attr("x2", xScale(mean))
-            .attr("y1", 0)
-            .attr("y2", innerHeight)
-            .attr("stroke", "red")
-            .attr("stroke-dasharray", "4 2")
 
-        const normalDensity = (x: number) => {
-            const coef = 1 / (std * Math.sqrt(2 * Math.PI))
-            const exp = Math.exp(-0.5 * Math.pow((x - mean) / std, 2))
-            return coef * exp
-        }
-
-        const scaleFactor = d3.max(bins, (d) => d.length)! / normalDensity(mean)
-        const densityData = d3
-            .range(xScale.domain()[0], xScale.domain()[1], (xScale.domain()[1] - xScale.domain()[0]) / 100)
-            .map((x) => ({
-                x,
-                y: normalDensity(x) * scaleFactor,
-            }))
-
-        const lineGen = d3
-            .line<{ x: number; y: number }>()
-            .x((d) => xScale(d.x))
-            .y((d) => yScale(d.y))
-
-        const curvePath = chartContent
-            .append("path")
-            .datum(densityData)
+        chartContent.append("path")
+            .datum(lineData)
             .attr("class", "density-curve")
             .attr("fill", "none")
             .attr("stroke", "purple")
             .attr("stroke-width", 2)
-            .attr("d", lineGen)
+            .attr("d", line)
+            .on("mousemove", function (event) {
+                // Find nearest x to mouse
+                const [mx] = d3.pointer(event)
+                const zx = xScale.invert(mx)
+                // Find nearest KDE point
+                const closest = lineData.reduce((a, b) =>
+                    Math.abs(a.x - zx) < Math.abs(b.x - zx) ? a : b
+                )
+                setHoverInfo({
+                    type: 'curve',
+                    value: closest,
+                    x: event.clientX,
+                    y: event.clientY,
+                })
+            })
+            .on("mouseleave", () => setHoverInfo(null))
 
-        console.log("[HistogramChart] Rendering chart")
-        console.log("[HistogramChart] Data count:", data.length)
-        console.log("[HistogramChart] Selected points:", selectedPoint)
+        chartContent.append("line")
+            .datum(mean)
+            .attr("x1", xScale(mean))
+            .attr("x2", xScale(mean))
+            .attr("y1", yScale(getYAtX(lineData, mean)))
+            .attr("y2", height)
+            .attr("stroke", "red")
+            .attr("stroke-dasharray", "4 2")
+            .on("mousemove", (event) => setHoverInfo({
+                type: 'mean', // or 'median'/'mode'
+                value: mean,
+                x: event.clientX,
+                y: event.clientY,
+            }))
+            .on("mouseleave", () => setHoverInfo(null))
+
+        // Median line
+        chartContent.append("line")
+            .datum(median)
+            .attr("x1", xScale(median))
+            .attr("x2", xScale(median))
+            .attr("y1", yScale(getYAtX(lineData, median)))
+            .attr("y2", height)
+            .attr("stroke", "orange")
+            .attr("stroke-dasharray", "4 2")
+            .on("mousemove", (event) => setHoverInfo({
+                type: 'mean', // or 'median'/'mode'
+                value: mean,
+                x: event.clientX,
+                y: event.clientY,
+            }))
+            .on("mouseleave", () => setHoverInfo(null))
+
+        // Mode line
+        chartContent.append("line")
+            .datum(mode)
+            .attr("x1", xScale(mode))
+            .attr("x2", xScale(mode))
+            .attr("y1", yScale(getYAtX(lineData, mode)))
+            .attr("y2", height)
+            .attr("stroke", "green")
+            .attr("stroke-dasharray", "2 2")
+            .on("mousemove", (event) => setHoverInfo({
+                type: 'mean', // or 'median'/'mode'
+                value: mean,
+                x: event.clientX,
+                y: event.clientY,
+            }))
+            .on("mouseleave", () => setHoverInfo(null))
 
         if (selectedPoint?.length) {
-            const selectedY = selectedPoint.map((d) => d.y);
+            const binPoint = binGenerator(intensitiesPoint ?? [])
 
-            const selMean = d3.mean(selectedY)!
-            const selStd = d3.deviation(selectedY)!
+            const resultPoint = genKDE(intensitiesPoint ?? [], binPoint, paddedDomain)
 
-            const selNormalDensity = (x: number) => {
-                const coef = 1 / (selStd * Math.sqrt(2 * Math.PI))
-                const exp = Math.exp(-0.5 * Math.pow((x - selMean) / selStd, 2))
-                return coef * exp
-            }
-
-            const selScaleFactor = d3.max(bins, (d) => d.length)! / selNormalDensity(selMean)
-            const selDensityData = d3
-                .range(xScale.domain()[0], xScale.domain()[1], (xScale.domain()[1] - xScale.domain()[0]) / 100)
-                .map((x) => ({
-                    x,
-                    y: selNormalDensity(x) * selScaleFactor,
-                }))
-
-            chartContent
-                .append("path")
-                .datum(selDensityData)
-                .attr("fill", "none")
-                .attr("stroke", "orange")
-                .attr("stroke-width", 2)
-                .attr("stroke-dasharray", "5 2")
-                .attr("d", d3.line<{ x: number; y: number }>()
-                    .x((d) => xScale(d.x))
-                    .y((d) => yScale(d.y)))
-
-            // Assign properly here
-            selectedBarGroup = chartContent
-                .selectAll<SVGRectElement, d3.Bin<number, number>>("rect.selected-bar")
-                .data(selectedBins)
+            chartContent.selectAll("hist")
+                .data(binPoint)
                 .enter()
                 .append("rect")
-                .attr("class", "selected-bar")
-                .attr("x", (d) => xScale(d.x0!))
-                .attr("y", (d) => yScale(d.length))
-                .attr("width", (d) => xScale(d.x1!) - xScale(d.x0!) - 1)
-                .attr("height", (d) => innerHeight - yScale(d.length))
-                .attr("fill", "orange")
-                .attr("fill-opacity", 0.6);
-        } else {
-            // Assign an empty selection with correct type (not inferred as never)
-            selectedBarGroup = chartContent.selectAll<SVGRectElement, d3.Bin<number, number>>("rect.__none__");
+                .attr("class", "hist")
+                .attr("x", d => xScale(d.x0!))
+                .attr("width", d => xScale(d.x1!) - xScale(d.x0!))
+                .attr("y", d => yScale(d.length))
+                .attr("height", d => height - yScale(d.length))
+                .attr("fill", "green")
+                .attr("opacity", 0.6);
+
+            chartContent.append("path")
+                .datum(resultPoint.lineData)
+                .attr("class", "density-curve")
+                .attr("fill", "none")
+                .attr("stroke", "purple")
+                .attr("stroke-width", 2)
+                .attr("d", line)
+                .on("mousemove", function (event) {
+                    // Find nearest x to mouse
+                    const [mx] = d3.pointer(event)
+                    const zx = xScale.invert(mx)
+                    // Find nearest KDE point
+                    const closest = lineData.reduce((a, b) =>
+                        Math.abs(a.x - zx) < Math.abs(b.x - zx) ? a : b
+                    )
+                    setHoverInfo({
+                        type: 'curve',
+                        value: closest,
+                        x: event.clientX,
+                        y: event.clientY,
+                    })
+                })
+                .on("mouseleave", () => setHoverInfo(null))
+
+            chartContent.append("line")
+                .datum(resultPoint.mean)
+                .attr("x1", xScale(resultPoint.mean))
+                .attr("x2", xScale(resultPoint.mean))
+                .attr("y1", yScale(getYAtX(resultPoint.lineData, resultPoint.mean)))
+                .attr("y2", height)
+                .attr("stroke", "red")
+                .attr("stroke-dasharray", "4 2")
+                .on("mousemove", (event) => setHoverInfo({
+                    type: 'mean', // or 'median'/'mode'
+                    value: mean,
+                    x: event.clientX,
+                    y: event.clientY,
+                }))
+                .on("mouseleave", () => setHoverInfo(null))
+
+            chartContent.append("line")
+                .datum(resultPoint.median)
+                .attr("x1", xScale(resultPoint.median))
+                .attr("x2", xScale(resultPoint.median))
+                .attr("y1", yScale(getYAtX(resultPoint.lineData, resultPoint.median)))
+                .attr("y2", height)
+                .attr("stroke", "orange")
+                .attr("stroke-dasharray", "4 2")
+                .on("mousemove", (event) => setHoverInfo({
+                    type: 'mean', // or 'median'/'mode'
+                    value: mean,
+                    x: event.clientX,
+                    y: event.clientY,
+                }))
+                .on("mouseleave", () => setHoverInfo(null))
+
+            chartContent.append("line")
+                .datum(resultPoint.mode)
+                .attr("x1", xScale(resultPoint.mode))
+                .attr("x2", xScale(resultPoint.mode))
+                .attr("y1", yScale(getYAtX(resultPoint.lineData, resultPoint.mode)))
+                .attr("y2", height)
+                .attr("stroke", "green")
+                .attr("stroke-dasharray", "2 2")
+                .on("mousemove", (event) => setHoverInfo({
+                    type: 'mean', // or 'median'/'mode'
+                    value: mean,
+                    x: event.clientX,
+                    y: event.clientY,
+                }))
+                .on("mouseleave", () => setHoverInfo(null))
         }
-        // Labels
-        svg
-            .append("text")
-            .attr("x", size.width / 2)
-            .attr("y", margin.top / 2)
-            .attr("text-anchor", "middle")
-            .attr("font-size", "14px")
-            .text("Distribution of Y Values")
 
-        svg
-            .append("text")
-            .attr("x", size.width / 2)
-            .attr("y", size.height - 5)
-            .attr("text-anchor", "middle")
-            .attr("font-size", "12px")
-            .text("Y Value")
+        //Hover
+        chartContent.selectAll("rect.hist")
+            .on("mousemove", function (event, d) {
+                setHoverInfo({
+                    type: 'bar',
+                    value: d,
+                    x: event.clientX,
+                    y: event.clientY,
+                })
+            })
+            .on("mouseleave", function () {
+                setHoverInfo(null)
+            })
 
-        svg
-            .append("text")
-            .attr("transform", "rotate(-90)")
-            .attr("x", -size.height / 2)
-            .attr("y", 15)
-            .attr("text-anchor", "middle")
-            .attr("font-size", "12px")
-            .text("Count")
+
+
 
         // Zoom
         const zoom = d3.zoom<SVGSVGElement, unknown>()
             .scaleExtent([1, 10])
-            .translateExtent([[0, 0], [innerWidth, innerHeight]])
-            .extent([[0, 0], [innerWidth, innerHeight]])
+            .translateExtent([[0, 0], [width, height]])
+            .extent([[0, 0], [width, height]])
             .on("zoom", (event) => {
                 const transform = event.transform
                 const zx = transform.rescaleX(xScale)
 
-                xAxisG.call(d3.axisBottom(zx))
+                xAxis.call(d3.axisBottom(zx))
 
-                barGroup
-                    .attr("x", (d) => zx(d.x0!))
-                    .attr("width", (d) => zx(d.x1!) - zx(d.x0!) - 1)
+                chartContent.selectAll("line")
+                    .attr("x1", d => zx(d))
+                    .attr("x2", d => zx(d));
 
-                meanLine
-                    .attr("x1", zx(mean))
-                    .attr("x2", zx(mean))
+                chartContent.selectAll<SVGRectElement, d3.Bin<number, number>>("rect.hist")
+                    .attr("x", d => zx(d.x0))
+                    .attr("width", d => zx(d.x1) - zx(d.x0))
 
-                const zoomedLine = d3
-                    .line<{ x: number; y: number }>()
-                    .x((d) => zx(d.x))
-                    .y((d) => yScale(d.y))
+                const newLine = d3.line<{ x: number, y: number }>()
+                    .x(d => zx(d.x))
+                    .y(d => yScale(d.y))
 
-                curvePath.attr("d", zoomedLine(densityData))
+                chartContent.selectAll<SVGPathElement, { x: number, y: number }[]>("path.density-curve")
+                    .attr("d", d => newLine(d))
 
-                selectedBarGroup
-                    .attr("x", (d) => zx(d.x0!))
-                    .attr("width", (d) => zx(d.x1!) - zx(d.x0!) - 1)
-
-                const orangeLine = d3.line<{ x: number; y: number }>()
-                    .x((d) => zx(d.x))
-                    .y((d) => yScale(d.y));
-
-                chartContent.selectAll("path")
-                    .filter((d, i, nodes) => d3.select(nodes[i]).attr("stroke") === "orange")
-                    .attr("d", function (d: any) {
-                        return orangeLine(d);
-                    });
             })
 
         svg.call(zoom).call(zoom.transform, d3.zoomIdentity)
@@ -274,9 +416,34 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
                     className="border px-1 text-xs w-10"
                 />
             </div>
-            <div ref={containerRef} className="flex w-full h-full">
+            <div ref={containerRef} className="relative flex w-full h-full">
                 <svg ref={svgRef} width={size.width} height={size.height} />
+                {hoverInfo && createPortal(
+                    <div className="overflow-visible" style={{
+                        position: 'absolute',
+                        left: hoverInfo.x,
+                        top: hoverInfo.y - 20,
+                        pointerEvents: 'none',
+                        background: 'rgba(30,30,40,0.95)',
+                        color: 'white',
+                        borderRadius: 8,
+                        padding: '0.5em 1em',
+                        fontSize: 13,
+                        zIndex: 100
+                    }}>
+                        {hoverInfo.type === 'bar' && (
+                            <>Bin: [{hoverInfo.value.x0.toFixed(2)}, {hoverInfo.value.x1.toFixed(2)}] <br /> Count: {hoverInfo.value.length}</>
+                        )}
+                        {hoverInfo.type === 'curve' && (
+                            <>x: {hoverInfo.value.x.toFixed(2)} <br /> Density: {hoverInfo.value.y.toFixed(2)}</>
+                        )}
+                        {['mean', 'median', 'mode'].includes(hoverInfo.type) && (
+                            <>{hoverInfo.type.toUpperCase()}: {hoverInfo.value.toFixed(2)}</>
+                        )}
+                    </div>
+                , document.body)}
             </div>
+
         </div>
 
     )

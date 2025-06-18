@@ -8,11 +8,10 @@ interface DataPoint {
 
 interface LineChartProps {
   data: DataPoint[];
-  selectPoint1Data?: DataPoint[];
-  selectPoint2Data?: DataPoint[];
+  selectPoint?: DataPoint[];
 }
 
-export default function LineChart({ data, selectPoint1Data, selectPoint2Data }: LineChartProps) {
+export default function LineChart({ data, selectPoint}: LineChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
@@ -55,7 +54,7 @@ export default function LineChart({ data, selectPoint1Data, selectPoint2Data }: 
       .domain(d3.extent(data, (d) => d.x) as [number, number])
       .range([0, innerWidth]);
 
-    const allData = [data, selectPoint1Data, selectPoint2Data].filter(Boolean) as DataPoint[][];
+    const allData = [data, selectPoint].filter(Boolean) as DataPoint[][];
     const yMax = d3.max(allData.flat(), d => d.y)!;
 
     const yScale = d3.scaleLinear()
@@ -129,8 +128,7 @@ export default function LineChart({ data, selectPoint1Data, selectPoint2Data }: 
     }
 
     const main = drawLineWithStats(data, "steelblue");
-    const p1 = selectPoint1Data ? drawLineWithStats(selectPoint1Data, "green") : null;
-    const p2 = selectPoint2Data ? drawLineWithStats(selectPoint2Data, "purple") : null;
+    const p1 = selectPoint ? drawLineWithStats(selectPoint, "green") : null;
 
     const tooltip = tooltipRef.current;
     const overlay = chartContent.append("rect")
@@ -154,7 +152,6 @@ export default function LineChart({ data, selectPoint1Data, selectPoint2Data }: 
 
       const dMain = hoverFor(main);
       if (p1) hoverFor(p1);
-      if (p2) hoverFor(p2);
 
       if (tooltip) {
         tooltip.style.display = "block";
@@ -172,7 +169,6 @@ export default function LineChart({ data, selectPoint1Data, selectPoint2Data }: 
       .on("mouseleave", () => {
         main.focus.style("display", "none");
         p1?.focus.style("display", "none");
-        p2?.focus.style("display", "none");
         if (tooltip) tooltip.style.display = "none";
       });
 
@@ -204,7 +200,7 @@ export default function LineChart({ data, selectPoint1Data, selectPoint2Data }: 
             .attr("y1", zy(series.avgY)).attr("y2", zy(series.avgY));
         };
 
-        [main, p1, p2].forEach(s => s && updateLine(s));
+        [main, p1].forEach(s => s && updateLine(s));
 
         overlay.on("mousemove", function (event) {
           const [mouseX] = d3.pointer(event);
@@ -213,7 +209,7 @@ export default function LineChart({ data, selectPoint1Data, selectPoint2Data }: 
       });
 
     svg.call(zoom as any).call((zoom as any).transform, d3.zoomIdentity);
-  }, [data, size, selectPoint1Data, selectPoint2Data]);
+  }, [data, size, selectPoint]);
 
   return (
     <div ref={containerRef} className="relative h-full w-full flex">
