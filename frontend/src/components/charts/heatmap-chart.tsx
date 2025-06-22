@@ -17,6 +17,7 @@ interface HeatmapVisualizationProps {
   numFrames: number
   onCellSelect?: (cell: { x: number; y: number; value: number; frame: number } | null) => void
   onFrameChange?: (frame: number) => void
+  selectedPoint: { frame: number, index: number, value: number } | null
 }
 
 export default function Visualization({
@@ -26,6 +27,7 @@ export default function Visualization({
   numFrames,
   onCellSelect,
   onFrameChange,
+  selectedPoint
 }: HeatmapVisualizationProps) {
   const { interpolator } = useChartInteraction()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -46,7 +48,7 @@ export default function Visualization({
     clickPosition,
     hoverPos,
     offsetRef,
-    zoom,
+    zoomRef,
     zoomIn,
     zoomOut,
     resetZoom,
@@ -55,6 +57,7 @@ export default function Visualization({
     handleMouseMove,
     handleMouseUp,
     handleMouseWheel,
+    handleKeyDown,
     downloadPNG,
     requestDraw,
     scheduleDraw
@@ -86,28 +89,34 @@ export default function Visualization({
     if (currentFrame !== prevFrameRef.current) {
       prevFrameRef.current = currentFrame
       onFrameChange?.(currentFrame)
-      if (clickPosition) {
-        const cell = getCellFromCoordinates(clickPosition.x, clickPosition.y)
-        if (cell) {
-          const value = data[currentFrame]?.[cell.x]?.[cell.y]
+      if (selectedCell) {
+          const value = data[currentFrame]?.[selectedCell.x]?.[selectedCell.y]
           if (value !== undefined) {
-            setSelectedCell({ ...cell, value })
-            onCellSelect?.({ x: cell.x, y: cell.y, value: value, frame: currentFrame })
+            setSelectedCell({ x: selectedCell.x, y: selectedCell.y, value: value})
           }
         }
-      }
       requestDraw()
     }
   }, [currentFrame])
 
+
+  useEffect(() => {
+    if (selectedPoint === null) return
+    console.log("POINT-NOT-FLAT: ", selectedPoint)
+    const idx = selectedPoint.index
+    setCurrentFrame(selectedPoint.frame)
+    setSelectedCell({ x: Math.floor(idx / numRows), y: idx % numRows, value: selectedPoint.value })
+    console.log("CELL-NOT-FLAT: ", { x: Math.floor(idx / numRows), y: idx % numRows, value: selectedPoint.value })
+  }, [selectedPoint])
+
   // Notify parent of cell selection only when selection actually changes
   useEffect(() => {
+
     const cellChanged =
       selectedCell?.x !== prevSelectedCellRef.current?.x || selectedCell?.y !== prevSelectedCellRef.current?.y || selectedCell?.value !== prevSelectedCellRef.current?.value
 
     if (cellChanged) {
       prevSelectedCellRef.current = selectedCell
-      console.log(selectedCell)
       if (selectedCell) {
         onCellSelect?.({ x: selectedCell.x, y: selectedCell.y, value: selectedCell.value, frame: currentFrame })
       } else {
@@ -115,7 +124,7 @@ export default function Visualization({
       }
       requestDraw()
     }
-  }, [selectedCell, currentFrame])
+  }, [selectedCell])
 
 
   useEffect(() => {
@@ -145,8 +154,8 @@ export default function Visualization({
       const adjustedX = canvasX - offsetX
       const adjustedY = canvasY - offsetY
 
-      const dataX = (adjustedX - offsetRef.current.x) / zoom
-      const dataY = (adjustedY - offsetRef.current.y) / zoom
+      const dataX = (adjustedX - offsetRef.current.x) / zoomRef.current
+      const dataY = (adjustedY - offsetRef.current.y) / zoomRef.current
 
       const col = Math.floor(dataX / (squareSize / numCols))
       const row = Math.floor(dataY / (squareSize / numRows))
@@ -156,7 +165,7 @@ export default function Visualization({
       }
       return null
     },
-    [zoom, numCols, numRows],
+    [numCols, numRows],
   )
 
   // If the clicked position changes, so does the selected sell
@@ -240,11 +249,13 @@ export default function Visualization({
         <div className="w-full h-full border-2 border-gray-300 relative">
           <canvas
             ref={canvasRef}
+            tabIndex={0}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseLeave}
             onWheel={handleMouseWheel}
+            onKeyDown={handleKeyDown}
             className={`w-full h-full ${mode === "pan" ? "cursor-move" : "cursor-crosshair"}`}
           />
           {hoveredCell && showTooltips && (

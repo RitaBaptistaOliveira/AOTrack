@@ -18,6 +18,8 @@ interface FrameProps {
 export default function Pixels() {
   const isLargeScreen = useMediaQuery({ minWidth: 768 })
   const [currentFrame, setCurrentFrame] = useState(0)
+  const [selectedCell, setSelectedCell] = useState<{ frame: number, x: number, y: number, value: number } | null>(null)
+  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
   const [flattenedData, setFlattenedData] = useState<number[][]>([])
   const [lineData, setLineData] = useState<{ x: number; y: number }[]>([])
   const [frameData, setFrameData] = useState<FrameProps | null>(null)
@@ -31,8 +33,8 @@ export default function Pixels() {
       const flattened: number[] = new Array(numRows * numCols)
       for (let row = 0; row < numRows; row++) {
         for (let col = 0; col < numCols; col++) {
-          const index = row * numCols + col
-          flattened[index] = frame[row][col]
+          const index = col * numRows + row
+          flattened[index] = frame[col][row]
         }
       }
       return flattened
@@ -55,14 +57,39 @@ export default function Pixels() {
           y: frame[selected.x][selected.y!]
         }));
         setIntensityOverTime(intensities);
+
         setCurrentFrame(selected.frame)
+        setSelectedCell({
+          frame: selected.frame,
+          x: selected.x,
+          y: selected.y,
+          value: selected.value
+        })
+        setSelectedPoint({
+          frame: selected.frame,
+          index: selected.x * frameData.numRows + selected.y,
+          value: selected.value
+        })
       }
       else {
         const intensities = flattenedData.map((frame, i) => ({
           x: i,
-          y: frame[i]
+          y: frame[selected.x]
         }));
         setIntensityOverTime(intensities);
+
+        setCurrentFrame(selected.frame)
+        setSelectedCell({
+          frame: selected.frame,
+          x: Math.floor(selected.x / frameData.numRows),
+          y: selected.x % frameData.numRows,
+          value: selected.value
+        })
+        setSelectedPoint({
+          frame: selected.frame,
+          index: selected.x,
+          value: selected.value
+        })
       }
     } else {
       setIntensityOverTime([]);
@@ -120,6 +147,7 @@ export default function Pixels() {
             numFrames={frameData.numFrames}
             onCellSelect={handleSelect}
             onFrameChange={handleFrameChange}
+            selectedPoint={selectedPoint}
           />
         )}
       </GridItem>
@@ -127,9 +155,11 @@ export default function Pixels() {
         {frameData && (
           <FlapHeatmap
             data={flattenedData}
+            numRows={frameData.numRows}
             numIndexes={frameData.numRows * frameData.numCols}
             numFrames={frameData.numFrames}
             onPointSelect={handleSelect}
+            selectedCell={selectedCell}
           />
         )}
       </GridItem>

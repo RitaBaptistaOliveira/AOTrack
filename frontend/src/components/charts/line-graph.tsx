@@ -63,11 +63,6 @@ export default function LineChart({ data, selectedPoint }: LineChartProps) {
     const intensitiesPoint = selectedPoint?.map((d) => d.y)
 
     const allY = [...intensitiesDefault, ...(intensitiesPoint ?? [])]
-    if (selectedPoint?.length) {
-      console.log(d3.extent(selectedPoint, (d) => d.x))
-    }
-
-
     const [minX, maxX] = d3.extent(data, (d) => d.x) as [number, number]
 
     const yMax = d3.max(allY.flat())!

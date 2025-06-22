@@ -25,7 +25,7 @@ export function useInteractions<TDrawArgs>({
 
   const canvasRef = externalCanvasRef ?? useRef<HTMLCanvasElement | null>(null)
   const [mode, setMode] = useState<BarMode>("select")
-  const [zoom, setZoom] = useState(1)
+  const zoomRef = useRef<number>(1)
   const offsetRef = useRef<Point>({ x: 0, y: 0 })
   const dragStartRef = useRef<Point | null>(null)
   const isDraggingRef = useRef(false)
@@ -47,15 +47,24 @@ export function useInteractions<TDrawArgs>({
   const requestDraw = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    draw(canvas, offsetRef.current, zoom, drawArgs)
-  }, [draw, zoom, drawArgs])
+    draw(canvas, offsetRef.current, zoomRef.current, drawArgs)
+  }, [draw, drawArgs])
 
   // Zoom controls
-  const zoomIn = () => setZoom(z => Math.min(z * 1.2, 10))
-  const zoomOut = () => setZoom(z => Math.max(z / 1.2, 0.1))
+  const zoomIn = () => {
+    const prev = zoomRef.current
+    zoomRef.current = Math.min(prev * 1.2, 10)
+    scheduleDraw()
+  }
+  const zoomOut = () => {
+    const prev = zoomRef.current
+    zoomRef.current = Math.max(prev / 1.2, 0.1)
+    scheduleDraw()
+  }
   const resetZoom = () => {
-    setZoom(1)
     offsetRef.current = { x: 0, y: 0 }
+    zoomRef.current = 1
+    scheduleDraw()
   }
 
   // Mouse events
@@ -98,6 +107,18 @@ export function useInteractions<TDrawArgs>({
     const canvas = canvasRef.current
     if (!canvas) return
 
+    if (e.shiftKey) {
+      offsetRef.current.y -= e.deltaY
+      scheduleDraw()
+      return
+    }
+
+    if (e.altKey) {
+      offsetRef.current.x -= e.deltaY
+      scheduleDraw()
+      return
+    }
+
     const rect = canvas.getBoundingClientRect()
     const mouseX = (e.clientX - rect.left)
     const mouseY = (e.clientY - rect.top)
@@ -106,16 +127,44 @@ export function useInteractions<TDrawArgs>({
     const delta = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor
 
     // Get data-space coordinates before zoom
-    const beforeZoomX = (mouseX - offsetRef.current.x) / zoom
-    const beforeZoomY = (mouseY - offsetRef.current.y) / zoom
+    const beforeZoomX = (mouseX - offsetRef.current.x) / zoomRef.current
+    const beforeZoomY = (mouseY - offsetRef.current.y) / zoomRef.current
 
-    const newZoom = Math.min(Math.max(zoom * delta, 0.1), 10)
-    setZoom(newZoom)
+    const newZoom = Math.min(Math.max(zoomRef.current * delta, 0.1), 10)
+    zoomRef.current = newZoom
 
     // Adjust offset to keep mouse position stable
     offsetRef.current.x = mouseX - beforeZoomX * newZoom
     offsetRef.current.y = mouseY - beforeZoomY * newZoom
-  }, [zoom])
+    scheduleDraw()
+  }, [])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const step = 50;
+
+    switch (e.key) {
+      case "ArrowUp":
+      case "w":
+        offsetRef.current.y += step;
+        break;
+      case "ArrowDown":
+      case "s":
+        offsetRef.current.y -= step;
+        break;
+      case "ArrowLeft":
+      case "a":
+        offsetRef.current.x += step;
+        break;
+      case "ArrowRight":
+      case "d":
+        offsetRef.current.x -= step;
+        break;
+      default:
+        return;
+    }
+
+    scheduleDraw()
+  }, []);
 
   // Download PNG
   const downloadPNG = useCallback(() => {
@@ -145,8 +194,6 @@ export function useInteractions<TDrawArgs>({
     const width = rect.width * dpr
     const height = rect.height * dpr
 
-    canvas.style.width = `${rect.width}px`
-    canvas.style.height = `${rect.height}px`
     canvas.width = width
     canvas.height = height
     setCanvasSize({ width, height })
@@ -178,15 +225,10 @@ export function useInteractions<TDrawArgs>({
     return () => resizeObserver.disconnect()
   }, [])
 
-  useEffect(() => {
-    requestDraw()
-  }, [zoom])
-
-
   return {
     mode,
     canvasSize,
-    zoom,
+    zoomRef,
     clickPosition,
     hoverPos,
     offsetRef,
@@ -202,6 +244,7 @@ export function useInteractions<TDrawArgs>({
     handleMouseUp,
     handleMouseLeave,
     handleMouseWheel,
+    handleKeyDown,
     scheduleDraw,
     requestDraw
   }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useState, useCallback, useMemo } from "react"
+import { useRef, useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import ControlBar from "../controls/control-bar"
@@ -12,16 +12,20 @@ type FitMode = "squeeze" | "scroll";
 
 interface FlatHeatmapProps {
   data: number[][]
+  numRows: number
   numIndexes: number
   numFrames: number
   onPointSelect?: (point: { frame: number; x: number; y: number | undefined; value: number; } | null) => void
+  selectedCell: { frame: number, x: number, y: number, value: number } | null
 }
 
 export default function FlapHeatmap({
   data,
+  numRows,
   numIndexes,
   numFrames,
   onPointSelect,
+  selectedCell
 }: FlatHeatmapProps) {
   const { interpolator } = useChartInteraction()
   const heatmapBufferRef = useRef<HTMLCanvasElement | null>(null);
@@ -49,7 +53,7 @@ export default function FlapHeatmap({
     clickPosition,
     hoverPos,
     offsetRef,
-    zoom,
+    zoomRef,
     zoomIn,
     zoomOut,
     resetZoom,
@@ -58,34 +62,20 @@ export default function FlapHeatmap({
     handleMouseMove,
     handleMouseUp,
     handleMouseWheel,
-    downloadPNG
+    handleKeyDown,
+    downloadPNG,
+    scheduleDraw
   } = useInteractions({
     externalCanvasRef: canvasRef,
     draw: (canvas, offset, zoom, drawArgs) => {
       const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      console.log(heatmapBufferRef.current)
-      console.log(canvasSize)
-      console.log(!heatmapBufferRef.current && canvasSize.width && canvasSize.height)
-      if (!heatmapBufferRef.current && canvasSize.width && canvasSize.height) {
-        heatmapBufferRef.current = generateHeatmapBuffer(
-          data,
-          numFrames,
-          numIndexes,
-          interpolator,
-          canvasSize
-        );
-      }
-
-      const buffer = heatmapBufferRef.current;
-      if (!buffer) return;
+      if (!ctx) return
 
       drawFlatHeatmapFromBuffer(
         ctx,
-        canvasSize,
         offset,
         zoom,
-        buffer,
+        heatmapBufferRef.current,
         drawArgs.selectedPoint
       )
     },
@@ -93,6 +83,26 @@ export default function FlapHeatmap({
       selectedPoint: selectedPoint ?? undefined
     }
   })
+
+  useEffect(() => {
+    if (selectedCell === null) return
+    console.log("CELL-FLAT: ", selectedCell)
+    setSelectedPoint({index: selectedCell.x * numRows + selectedCell.y, frame: selectedCell.frame, value: selectedCell.value})
+    console.log("POINT-FLAT: ", {index: selectedCell.x * numRows + selectedCell.y, frame: selectedCell.frame, value: selectedCell.value})
+  }, [selectedCell])
+
+  useEffect(() => {
+    if (canvasSize.width && canvasSize.height) {
+      heatmapBufferRef.current = generateHeatmapBuffer(
+        data,
+        numFrames,
+        numIndexes,
+        interpolator,
+        canvasSize
+      );
+    }
+    scheduleDraw()
+  }, [data, numFrames, numIndexes, interpolator, canvasSize])
 
   function generateColorGradient(min = 0, max = 1, steps = 20) {
     const colorStops = Array.from({ length: steps }, (_, i) => {
@@ -109,36 +119,49 @@ export default function FlapHeatmap({
       if (!canvas) return
       if (canvas.width === 0 || canvas.height === 0) return null
 
-      const squareSize = Math.min(canvas.width, canvas.height)
-      // const offsetX = (canvas.width - squareSize) / 2
-      // const offsetY = (canvas.height - squareSize) / 2
+      const zoomLevel = zoomRef.current
+      const offset = offsetRef.current
 
-      // const adjustedX = canvasX - offsetX
-      // const adjustedY = canvasY - offsetY
+      const cellSize = Math.floor(canvas.width / numFrames)
+      const offsetX = (canvas.width - (heatmapBufferRef.current?.width ?? 0)) / 2
+      const x = (canvasX - offset.x - offsetX) / zoomLevel
+      const y = (canvasY - offset.y) / zoomLevel
 
-      const dataX = (canvasX - offsetRef.current.x) / zoom
-      const dataY = (canvasY - offsetRef.current.y) / zoom
 
-      const frame = Math.floor(dataX / (squareSize / numFrames))
-      const index = Math.floor(dataY / (squareSize / numIndexes))
+      const frame = Math.floor(x / cellSize)
+      const index = Math.floor(y / cellSize)
 
       if (frame >= 0 && frame < numFrames && index >= 0 && index < numIndexes) {
         return { frame: frame, index: index }
       }
       return null
     },
-    [zoom, numIndexes, numFrames],
+    [numIndexes, numFrames],
   )
+
+  useEffect(() => {
+    const pointChanged =
+      selectedPoint?.frame !== prevPointRef.current?.frame || selectedPoint?.index !== prevPointRef.current?.index || selectedPoint?.value !== prevPointRef.current?.value
+
+    if (pointChanged) {
+      prevPointRef.current = selectedPoint
+      if (selectedPoint) {
+        onPointSelect?.({ frame: selectedPoint.frame, x: selectedPoint.index, y: undefined, value: selectedPoint.value })
+      } else {
+        onPointSelect?.(null)
+      }
+      scheduleDraw()
+    }
+  }, [selectedPoint])
 
   // If the clicked position changes, so does the selected sell
   useEffect(() => {
     if (clickPosition) {
       const point = getPointFromCoordinates(clickPosition.x, clickPosition.y)
-      if (point && point?.frame === prevPointRef.current?.frame && point?.index === prevPointRef.current?.index) {
+      if (point) {
         const value = data?.[point.frame]?.[point.index]
         if (value !== undefined && value !== prevPointRef.current?.value) {
           setSelectedPoint({ ...point, value })
-          onPointSelect?.({ frame: point.frame, x: point.index, y: undefined, value: value })
         }
       } else {
         setSelectedPoint(null)
@@ -147,7 +170,6 @@ export default function FlapHeatmap({
   }, [clickPosition])
 
   useEffect(() => {
-    console.log("ENTER")
     if (hoverPos && showTooltips) {
       const point = getPointFromCoordinates(hoverPos.x, hoverPos.y)
       if (point) {
@@ -198,11 +220,13 @@ export default function FlapHeatmap({
         <div className="w-full h-full border-2 border-gray-300 relative">
           <canvas
             ref={canvasRef}
+            tabIndex={0}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseLeave}
             onWheel={handleMouseWheel}
+            onKeyDown={handleKeyDown}
             className={`w-full h-full ${mode === "pan" ? "cursor-move" : "cursor-crosshair"}`}
           />
           {hoveredPoint && showTooltips && (

@@ -53,7 +53,7 @@ export default function Measurements() {
       setFrameData(processedData);
     }
     catch (err) {
-      console.log(`Error updating data: ${err instanceof Error ? err.message : "Unknown error"}`);
+      console.error(`Error updating data: ${err instanceof Error ? err.message : "Unknown error"}`);
     }
   };
   return (
@@ -61,7 +61,7 @@ export default function Measurements() {
       {/* A - spans 3 cols, 2 rows */}
       <Card className="col-span-3 row-span-2">
         <CardContent className="h-full flex items-center justify-center">
-          {frameData &&
+          {/* {frameData &&
             <Visualization
               data={frameData.data}
               numRows={frameData.numRows}
@@ -69,7 +69,7 @@ export default function Measurements() {
               numFrames={frameData.numFrames}
               onCellSelect={handleCellSelect}
               onFrameChange={handleFrameChange}
-            />}
+            />} */}
         </CardContent>
       </Card>
 
