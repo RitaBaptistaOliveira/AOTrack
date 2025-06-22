@@ -1,224 +1,365 @@
-import { useEffect, useRef, useState } from "react";
-import * as d3 from "d3";
+import { useEffect, useRef, useState } from "react"
+import * as d3 from "d3"
+import { createPortal } from "react-dom"
 
 interface DataPoint {
-  x: number;
-  y: number;
+  x: number
+  y: number
 }
 
 interface LineChartProps {
-  data: DataPoint[];
-  selectPoint?: DataPoint[];
+  data: DataPoint[]
+  selectedPoint?: DataPoint[]
 }
 
-export default function LineChart({ data, selectPoint}: LineChartProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const tooltipRef = useRef<HTMLDivElement | null>(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
+export default function LineChart({ data, selectedPoint }: LineChartProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  const xScaleRef = useRef<d3.ScaleLinear<number, number, never> | null>(null)
+  const yScaleRef = useRef<d3.ScaleLinear<number, number, never> | null>(null)
+  const [size, setSize] = useState({ width: 0, height: 0 })
+  const [hoverInfo, setHoverInfo] = useState<null | {
+    value: any
+    x: number
+    y: number
+  }>(null)
 
   useEffect(() => {
     const observer = new ResizeObserver((entries) => {
       for (let entry of entries) {
-        const { width, height } = entry.contentRect;
-        setSize({ width, height });
+        const { width, height } = entry.contentRect
+        setSize({ width, height })
       }
-    });
+    })
 
     if (containerRef.current) {
-      observer.observe(containerRef.current);
+      observer.observe(containerRef.current)
     }
 
-    return () => observer.disconnect();
-  }, []);
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
-    const svgElement = svgRef.current;
-    if (!svgElement || !data.length) return;
+    if (!svgRef.current || !data.length || size.width === 0 || size.height === 0) return
 
-    const margin = { top: 20, right: 20, bottom: 30, left: 40 };
-    const innerWidth = size.width - margin.left - margin.right;
-    const innerHeight = size.height - margin.top - margin.bottom;
+    const margin = { top: 20, right: 20, bottom: 20, left: 40 }
+    const width = size.width - margin.left - margin.right
+    const height = size.height - margin.top - margin.bottom
 
-    const svg = d3.select(svgElement);
-    svg.selectAll("*").remove();
+    const svg = d3.select(svgRef.current)
+    svg.selectAll("*").remove()
 
     svg.append("defs")
       .append("clipPath")
       .attr("id", "clip")
       .append("rect")
-      .attr("width", innerWidth)
-      .attr("height", innerHeight);
+      .attr("width", width)
+      .attr("height", height)
 
-    const xScale = d3.scaleLinear()
-      .domain(d3.extent(data, (d) => d.x) as [number, number])
-      .range([0, innerWidth]);
+    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`)
+    const chartContent = g.append("g").attr("clip-path", "url(#clip)")
 
-    const allData = [data, selectPoint].filter(Boolean) as DataPoint[][];
-    const yMax = d3.max(allData.flat(), d => d.y)!;
+    const intensitiesDefault = data.map((d) => d.y)
+    const intensitiesPoint = selectedPoint?.map((d) => d.y)
 
-    const yScale = d3.scaleLinear()
-      .domain([0, yMax])
-      .nice()
-      .range([innerHeight, 0]);
+    const allY = [...intensitiesDefault, ...(intensitiesPoint ?? [])]
+    if (selectedPoint?.length) {
+      console.log(d3.extent(selectedPoint, (d) => d.x))
+    }
 
-    const xAxis = d3.axisBottom(xScale);
-    const yAxis = d3.axisLeft(yScale);
+
+    const [minX, maxX] = d3.extent(data, (d) => d.x) as [number, number]
+
+    const yMax = d3.max(allY.flat())!
+
+    const xScale = d3.scaleLinear().domain([minX, maxX]).range([1, width])
+    const yScale = d3.scaleLinear().domain([0, yMax]).range([height, 0])
+    xScaleRef.current = xScale
+    yScaleRef.current = yScale
+    const xAxis = svg.append("g").attr("transform", `translate(${margin.left},${height + margin.top})`).attr("class", "x-axis").call(d3.axisBottom(xScale))
+    const yAxis = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`).attr("class", "y-axis").call(d3.axisLeft(yScale))
+
 
     const line = d3.line<DataPoint>()
       .x((d) => xScale(d.x))
-      .y((d) => yScale(d.y));
+      .y((d) => yScale(d.y))
 
-    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
-
-    const xAxisG = g.append("g")
-      .attr("transform", `translate(0,${innerHeight})`)
-      .call(xAxis);
-
-    const yAxisG = g.append("g").call(yAxis);
-
-    const chartContent = g.append("g").attr("clip-path", "url(#clip)");
-
-    function drawLineWithStats(dataSet: DataPoint[], color: string) {
-      chartContent.append("path")
-        .datum(dataSet)
-        .attr("class", `line-${color}`)
-        .attr("fill", "none")
-        .attr("stroke", color)
-        .attr("stroke-width", 2)
-        .attr("d", line);
-
-      const minY = d3.min(dataSet, d => d.y)!;
-      const maxY = d3.max(dataSet, d => d.y)!;
-      const avgY = d3.mean(dataSet, d => d.y)!;
-
-      chartContent.append("line")
-        .attr("class", `stat-line-${color}-min`)
-        .attr("x1", 0)
-        .attr("x2", innerWidth)
-        .attr("y1", yScale(minY))
-        .attr("y2", yScale(minY))
-        .attr("stroke", color)
-        .attr("stroke-dasharray", "4 2");
-
-      chartContent.append("line")
-        .attr("class", `stat-line-${color}-max`)
-        .attr("x1", 0)
-        .attr("x2", innerWidth)
-        .attr("y1", yScale(maxY))
-        .attr("y2", yScale(maxY))
-        .attr("stroke", color)
-        .attr("stroke-dasharray", "4 2");
-
-      chartContent.append("line")
-        .attr("class", `stat-line-${color}-avg`)
-        .attr("x1", 0)
-        .attr("x2", innerWidth)
-        .attr("y1", yScale(avgY))
-        .attr("y2", yScale(avgY))
-        .attr("stroke", color)
-        .attr("stroke-dasharray", "4 2");
-
-      const focus = chartContent.append("circle")
-        .attr("r", 4)
-        .attr("fill", color)
-        .style("display", "none");
-
-      return { focus, data: dataSet, color, minY, maxY, avgY };
-    }
-
-    const main = drawLineWithStats(data, "steelblue");
-    const p1 = selectPoint ? drawLineWithStats(selectPoint, "green") : null;
-
-    const tooltip = tooltipRef.current;
-    const overlay = chartContent.append("rect")
-      .attr("width", innerWidth)
-      .attr("height", innerHeight)
-      .attr("fill", "transparent")
-      .style("cursor", "crosshair");
-
-    const updateFocus = (mouseX: number, zx: any, zy: any) => {
-      const x0 = zx.invert(mouseX);
-      const bisect = d3.bisector((d: DataPoint) => d.x).left;
-
-      const hoverFor = (series: typeof main) => {
-        const idx = bisect(series.data, x0);
-        const d0 = series.data[Math.max(0, Math.min(idx, series.data.length - 1))];
-        const cx = zx(d0.x);
-        const cy = zy(d0.y);
-        series.focus.attr("cx", cx).attr("cy", cy).style("display", "block");
-        return d0;
-      };
-
-      const dMain = hoverFor(main);
-      if (p1) hoverFor(p1);
-
-      if (tooltip) {
-        tooltip.style.display = "block";
-        tooltip.style.left = `${margin.left + zx(dMain.x) + 10}px`;
-        tooltip.style.top = `${margin.top + zy(dMain.y) - 20}px`;
-        tooltip.innerHTML = `x: ${dMain.x}<br/>y: ${dMain.y}`;
-      }
-    };
-
-    overlay
+    chartContent.append("path")
+      .datum(data)
+      .attr("class", `main-line`)
+      .attr("fill", "none")
+      .attr("stroke", "steelblue")
+      .attr("stroke-width", 2)
+      .attr("d", line)
       .on("mousemove", function (event) {
-        const [mouseX] = d3.pointer(event);
-        updateFocus(mouseX, xScale, yScale);
+        const [mx] = d3.pointer(event)
+        if (!xScaleRef.current) return;
+        const zx = xScaleRef.current.invert(mx)
+
+        const closest = data.reduce((a, b) =>
+          Math.abs(a.x - zx) < Math.abs(b.x - zx) ? a : b
+        )
+        setHoverInfo({
+          value: closest,
+          x: event.clientX,
+          y: event.clientY,
+        })
       })
-      .on("mouseleave", () => {
-        main.focus.style("display", "none");
-        p1?.focus.style("display", "none");
-        if (tooltip) tooltip.style.display = "none";
-      });
+      .on("mouseleave", () => setHoverInfo(null))
+
+    const min = d3.min(data, d => d.y)!
+    const max = d3.max(data, d => d.y)!
+    const mean = d3.mean(data, d => d.y)!
+
+    chartContent.append("line")
+      .datum(min)
+      .attr("class", `stat-line`)
+      .attr("x1", 0)
+      .attr("x2", width)
+      .attr("y1", yScale(min))
+      .attr("y2", yScale(min))
+      .attr("stroke", "steelblue")
+      .attr("stroke-dasharray", "4 2")
+      .on("mousemove", function (event) {
+        const [mx] = d3.pointer(event)
+        if (!xScaleRef.current) return;
+        const frame = Math.round(xScaleRef.current.invert(mx))
+
+        if (frame < 0 || frame >= data.length) return
+
+        const closest = {
+          x: frame,
+          y: min,
+        }
+        setHoverInfo({
+          value: closest,
+          x: event.clientX,
+          y: event.clientY,
+        })
+      })
+      .on("mouseleave", () => setHoverInfo(null))
+
+    chartContent.append("line")
+      .datum(max)
+      .attr("class", `stat-line`)
+      .attr("x1", 0)
+      .attr("x2", width)
+      .attr("y1", yScale(max))
+      .attr("y2", yScale(max))
+      .attr("stroke", "steelblue")
+      .attr("stroke-dasharray", "4 2")
+      .on("mousemove", function (event) {
+        const [mx] = d3.pointer(event)
+        if (!xScaleRef.current) return;
+        const frame = Math.round(xScaleRef.current.invert(mx))
+
+        if (frame < 0 || frame >= data.length) return
+
+        const closest = {
+          x: frame,
+          y: max,
+        }
+        setHoverInfo({
+          value: closest,
+          x: event.clientX,
+          y: event.clientY,
+        })
+      })
+      .on("mouseleave", () => setHoverInfo(null))
+
+    chartContent.append("line")
+      .datum(mean)
+      .attr("class", `stat-line`)
+      .attr("x1", 0)
+      .attr("x2", width)
+      .attr("y1", yScale(mean))
+      .attr("y2", yScale(mean))
+      .attr("stroke", "steelblue")
+      .attr("stroke-dasharray", "4 2")
+      .on("mousemove", function (event) {
+        const [mx] = d3.pointer(event)
+        if (!xScaleRef.current) return;
+        const frame = Math.round(xScaleRef.current.invert(mx))
+
+        if (frame < 0 || frame >= data.length) return
+
+        const closest = {
+          x: frame,
+          y: mean,
+        }
+        setHoverInfo({
+          value: closest,
+          x: event.clientX,
+          y: event.clientY,
+        })
+      })
+      .on("mouseleave", () => setHoverInfo(null))
+
+    if (selectedPoint?.length) {
+      chartContent.append("path")
+        .datum(selectedPoint)
+        .attr("class", `main-line`)
+        .attr("fill", "none")
+        .attr("stroke", "green")
+        .attr("stroke-width", 2)
+        .attr("d", line)
+        .on("mousemove", function (event) {
+          const [mx] = d3.pointer(event)
+          if (!xScaleRef.current) return;
+          const zx = xScaleRef.current.invert(mx)
+
+          const closest = selectedPoint.reduce((a, b) =>
+            Math.abs(a.x - zx) < Math.abs(b.x - zx) ? a : b
+          )
+          setHoverInfo({
+            value: closest,
+            x: event.clientX,
+            y: event.clientY,
+          })
+        })
+        .on("mouseleave", () => setHoverInfo(null))
+
+      const minSelected = d3.min(selectedPoint, d => d.y)!
+      const maxSelected = d3.max(selectedPoint, d => d.y)!
+      const meanSelected = d3.mean(selectedPoint, d => d.y)!
+
+      chartContent.append("line")
+        .datum(minSelected)
+        .attr("class", `stat-line`)
+        .attr("x1", 0)
+        .attr("x2", width)
+        .attr("y1", yScale(minSelected))
+        .attr("y2", yScale(minSelected))
+        .attr("stroke", "green")
+        .attr("stroke-dasharray", "4 2")
+        .on("mousemove", function (event) {
+          const [mx] = d3.pointer(event)
+          if (!xScaleRef.current) return;
+          const frame = Math.round(xScaleRef.current.invert(mx))
+
+          if (frame < 0 || frame >= data.length) return
+
+          const closest = {
+            x: frame,
+            y: minSelected,
+          }
+          setHoverInfo({
+            value: closest,
+            x: event.clientX,
+            y: event.clientY,
+          })
+        })
+        .on("mouseleave", () => setHoverInfo(null))
+
+      chartContent.append("line")
+        .datum(maxSelected)
+        .attr("class", `stat-line`)
+        .attr("x1", 0)
+        .attr("x2", width)
+        .attr("y1", yScale(maxSelected))
+        .attr("y2", yScale(maxSelected))
+        .attr("stroke", "steelblue")
+        .attr("stroke-dasharray", "4 2")
+        .on("mousemove", function (event) {
+          const [mx] = d3.pointer(event)
+          if (!xScaleRef.current) return;
+          const frame = Math.round(xScaleRef.current.invert(mx))
+
+          if (frame < 0 || frame >= data.length) return
+
+          const closest = {
+            x: frame,
+            y: maxSelected,
+          }
+          setHoverInfo({
+            value: closest,
+            x: event.clientX,
+            y: event.clientY,
+          })
+        })
+        .on("mouseleave", () => setHoverInfo(null))
+
+      chartContent.append("line")
+        .datum(meanSelected)
+        .attr("class", `stat-line`)
+        .attr("x1", 0)
+        .attr("x2", width)
+        .attr("y1", yScale(meanSelected))
+        .attr("y2", yScale(meanSelected))
+        .attr("stroke", "green")
+        .attr("stroke-dasharray", "4 2")
+        .on("mousemove", function (event) {
+          const [mx] = d3.pointer(event)
+          if (!xScaleRef.current) return;
+          const frame = Math.round(xScaleRef.current.invert(mx))
+
+          if (frame < 0 || frame >= data.length) return
+
+          const closest = {
+            x: frame,
+            y: meanSelected,
+          }
+          setHoverInfo({
+            value: closest,
+            x: event.clientX,
+            y: event.clientY,
+          })
+        })
+        .on("mouseleave", () => setHoverInfo(null))
+    }
 
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.5, 10])
-      .translateExtent([[0, 0], [size.width, size.height]])
-      .extent([[0, 0], [size.width, size.height]])
+      .translateExtent([[0, 0], [width, height]])
+      .extent([[0, 0], [width, height]])
       .on("zoom", (event) => {
-        const transform = event.transform;
-        const zx = transform.rescaleX(xScale);
-        const zy = transform.rescaleY(yScale);
+        const transform = event.transform
+        const zx = transform.rescaleX(xScale)
+        const zy = transform.rescaleY(yScale)
+        xScaleRef.current = zx
+        yScaleRef.current = zy
 
-        xAxisG.call(d3.axisBottom(zx));
-        yAxisG.call(d3.axisLeft(zy));
+        chartContent.selectAll("line")
+          .attr("x1", zx(minX))
+          .attr("x2", zx(maxX))
+          .attr("y1", d => zy(d))
+          .attr("y2", d => zy(d))
 
-        const updateLine = (series: typeof main & { minY: number, maxY: number, avgY: number }) => {
-          const lineGen = d3.line<DataPoint>()
-            .x((d) => zx(d.x))
-            .y((d) => zy(d.y));
+        xAxis.call(d3.axisBottom(zx))
+        yAxis.call(d3.axisLeft(zy))
 
-          chartContent.select(`.line-${series.color}`).attr("d", lineGen(series.data));
-          series.focus.style("display", "none");
+        const newLine = d3.line<DataPoint>()
+          .x((d) => zx(d.x))
+          .y((d) => zy(d.y))
 
-          chartContent.select(`.stat-line-${series.color}-min`)
-            .attr("y1", zy(series.minY)).attr("y2", zy(series.minY));
-          chartContent.select(`.stat-line-${series.color}-max`)
-            .attr("y1", zy(series.maxY)).attr("y2", zy(series.maxY));
-          chartContent.select(`.stat-line-${series.color}-avg`)
-            .attr("y1", zy(series.avgY)).attr("y2", zy(series.avgY));
-        };
+        chartContent.selectAll<SVGPathElement, { x: number, y: number }[]>("path.main-line")
+          .attr("d", d => newLine(d))
 
-        [main, p1].forEach(s => s && updateLine(s));
 
-        overlay.on("mousemove", function (event) {
-          const [mouseX] = d3.pointer(event);
-          updateFocus(mouseX, zx, zy);
-        });
-      });
+      })
 
-    svg.call(zoom as any).call((zoom as any).transform, d3.zoomIdentity);
-  }, [data, size, selectPoint]);
+    svg.call(zoom).call((zoom).transform, d3.zoomIdentity)
+  }, [data, size, selectedPoint])
 
   return (
     <div ref={containerRef} className="relative h-full w-full flex">
       <svg ref={svgRef} width={size.width} height={size.height} />
-      <div
-        ref={tooltipRef}
-        className="absolute text-xs bg-white shadow px-2 py-1 rounded border pointer-events-none"
-        style={{ display: "none", position: "absolute", zIndex: 10 }}
-      />
+      {hoverInfo && createPortal(
+        <div className="overflow-visible" style={{
+          position: 'absolute',
+          left: hoverInfo.x,
+          top: hoverInfo.y - 20,
+          pointerEvents: 'none',
+          background: 'rgba(30,30,40,0.95)',
+          color: 'white',
+          borderRadius: 8,
+          padding: '0.5em 1em',
+          fontSize: 13,
+          zIndex: 100
+        }}>
+          <>Frame: {hoverInfo.value.x.toFixed(2)} <br /> Value: {hoverInfo.value.y.toFixed(2)} </>
+        </div>
+        , document.body)}
     </div>
-  );
+  )
 }

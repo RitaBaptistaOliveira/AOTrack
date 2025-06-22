@@ -1,5 +1,3 @@
-import { useRef, useEffect } from "react";
-
 export function drawHeatmap(
     canvas: HTMLCanvasElement,
     offset: { x: number, y: number },
@@ -9,7 +7,7 @@ export function drawHeatmap(
     numRows: number,
     numCols: number,
     selectedCell: { x: number; y: number } | null,
-    interpolator: (t: number) => string
+    interpolator: (t: number) => string,
 ) {
     if (!data) {
         return
@@ -50,16 +48,28 @@ export function generateHeatmapBuffer(
     data: number[][],
     numFrames: number,
     numIndexes: number,
-    interpolator: (t: number) => string
+    interpolator: (t: number) => string,
+    canvasSize: { width: number, height: number }
 ): HTMLCanvasElement {
-    const canvas = document.createElement("canvas");
-    canvas.width = numFrames;
-    canvas.height = numIndexes;
+    let w
+    let h
+    if (canvasSize.width === 0 || canvasSize.height === 0) {
+        w = numFrames
+        h = numIndexes
+    } else {
+        w = canvasSize.width
+        h = canvasSize.height
+    }
+    const canvas = document.createElement("canvas")
+    canvas.width = w
+    canvas.height = h
+
+    console.log(canvasSize)
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return canvas;
 
-    const imageData = ctx.createImageData(numFrames, numIndexes);
+    const imageData = ctx.createImageData(w, h);
     const pixels = imageData.data;
 
     const hexToRGB = (hex: string): [number, number, number] => {
@@ -68,10 +78,12 @@ export function generateHeatmapBuffer(
     };
 
     for (let f = 0; f < numFrames; f++) {
+        const x = Math.floor(f * w / numFrames);
         for (let i = 0; i < numIndexes; i++) {
+            const y = Math.floor(i * h / numIndexes);
             const value = data[f][i];
             const [r, g, b] = hexToRGB(interpolator(value));
-            const idx = (i * numFrames + f) * 4;
+            const idx = (y * w + x) * 4;
             pixels[idx] = r;
             pixels[idx + 1] = g;
             pixels[idx + 2] = b;
@@ -116,10 +128,10 @@ export function drawFlatHeatmapFromBuffer(
     canvasSize: { width: number; height: number },
     offset: { x: number; y: number },
     zoom: number,
-    buffer: HTMLCanvasElement,
+    buffer?: HTMLCanvasElement,
     selected?: { frame: number; index: number; value: number }
 ) {
-    console.log(ctx, canvasSize, offset, zoom, buffer)
+    if(!buffer) return
     ctx.clearRect(0, 0, canvasSize.width, canvasSize.height);
     ctx.save();
     ctx.imageSmoothingEnabled = false;

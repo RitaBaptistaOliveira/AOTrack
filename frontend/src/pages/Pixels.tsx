@@ -13,15 +13,10 @@ interface FrameProps {
   numRows: number
   numCols: number
   numFrames: number
-}interface DataPoint {
-  x: number
-  y: number
 }
 
 export default function Pixels() {
   const isLargeScreen = useMediaQuery({ minWidth: 768 })
-  const [selectedCell, setSelectedCell] = useState<{ x: number; y: number; value: number; frame: number } | null>(null)
-  const [selectedPoint, setSelectedPoint] = useState<{ frame: number; index: number; value: number } | null>(null)
   const [currentFrame, setCurrentFrame] = useState(0)
   const [flattenedData, setFlattenedData] = useState<number[][]>([])
   const [lineData, setLineData] = useState<{ x: number; y: number }[]>([])
@@ -52,18 +47,23 @@ export default function Pixels() {
     })
   }
 
-  const handleCellSelect = useCallback((cell: { x: number; y: number; value: number; frame: number } | null) => {
-    console.log("CELL SELECTION CHANGE to: ", cell)
-    setSelectedCell(cell)
-    if (cell && frameData) {
-      const intensities = frameData.data.map((frame, i) => ({
-        x: i,
-        y: frame[cell.x][cell.y]
-      }));
-      const ind = cell.x * frameData.numCols + cell.y
-      setIntensityOverTime(intensities);
-      setCurrentFrame(cell.frame)
-      setSelectedPoint({frame: cell.frame, index: ind, value: cell.value})
+  const handleSelect = useCallback((selected: { frame: number, x: number; y: number | undefined; value: number } | null) => {
+    if (selected && frameData) {
+      if (selected.y) {
+        const intensities = frameData.data.map((frame, i) => ({
+          x: i,
+          y: frame[selected.x][selected.y!]
+        }));
+        setIntensityOverTime(intensities);
+        setCurrentFrame(selected.frame)
+      }
+      else {
+        const intensities = flattenedData.map((frame, i) => ({
+          x: i,
+          y: frame[i]
+        }));
+        setIntensityOverTime(intensities);
+      }
     } else {
       setIntensityOverTime([]);
     }
@@ -73,31 +73,9 @@ export default function Pixels() {
     setCurrentFrame(frame)
   }, [])
 
-  const handlePointSelect = useCallback((point: { frame: number; index: number; value: number } | null) => {
-    console.log("POINT SELECTION CHANGE")
-    setSelectedPoint(point)
-    if (point && frameData) {
-      const row = Math.floor(point.index / frameData.numCols);
-      const col = point.index % frameData.numCols;
-      const intensities = frameData.data.map((frame, i) => ({
-        x: i,
-        y: frame[row][col]
-      }));
-      setIntensityOverTime(intensities);
-      setCurrentFrame(point.frame)
-      setSelectedCell({x: row, y:col, value: frameData.data[point.frame][row][col], frame: point.frame})
-    } else {
-      setIntensityOverTime([]);
-    }
-  }, [frameData])
-
   useEffect(() => {
     getFrames();
   }, [scaleType, intervalType]);
-
-  useEffect(() => {
-    console.log(selectedCell)
-  }, [selectedCell])
 
   const getFrames = async () => {
     try {
@@ -140,7 +118,7 @@ export default function Pixels() {
             numRows={frameData.numRows}
             numCols={frameData.numCols}
             numFrames={frameData.numFrames}
-            onCellSelect={handleCellSelect}
+            onCellSelect={handleSelect}
             onFrameChange={handleFrameChange}
           />
         )}
@@ -151,11 +129,11 @@ export default function Pixels() {
             data={flattenedData}
             numIndexes={frameData.numRows * frameData.numCols}
             numFrames={frameData.numFrames}
-            onPointSelect={handlePointSelect}
+            onPointSelect={handleSelect}
           />
         )}
       </GridItem>
-      <GridItem area="c"><LineChart data={lineData} selectPoint={intensityOverTime} /></GridItem>
+      <GridItem area="c"><LineChart data={lineData} selectedPoint={intensityOverTime} /></GridItem>
       <GridItem area="d"><HistogramChart data={lineData} selectedPoint={intensityOverTime} /></GridItem>
       <GridItem area="e"><StatTable data={lineData} /></GridItem>
     </DashboardGrid>

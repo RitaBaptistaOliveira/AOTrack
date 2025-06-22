@@ -145,10 +145,6 @@ export default function Visualization({
       const adjustedX = canvasX - offsetX
       const adjustedY = canvasY - offsetY
 
-      if (adjustedX < 0 || adjustedX > squareSize || adjustedY < 0 || adjustedY > squareSize) {
-        return null
-      }
-
       const dataX = (adjustedX - offsetRef.current.x) / zoom
       const dataY = (adjustedY - offsetRef.current.y) / zoom
 

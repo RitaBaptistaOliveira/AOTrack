@@ -114,7 +114,7 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
     useEffect(() => {
         if (!svgRef.current || !data.length || size.width === 0 || size.height === 0) return
 
-        const margin = { top: 20, right: 30, bottom: 20, left: 20 }
+        const margin = { top: 20, right: 20, bottom: 20, left: 40 }
         const width = size.width - margin.left - margin.right
         const height = size.height - margin.top - margin.bottom
 
@@ -149,7 +149,7 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
         const yScale = d3.scaleLinear().domain([0, maxBinHeight]).range([height, 0])
 
         const xAxis = svg.append("g").attr("transform", `translate(${margin.left},${height + margin.top})`).attr("class", "x-axis").call(d3.axisBottom(xScale));
-        const yAxis = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`).attr("class", "y-axis").call(d3.axisLeft(yScale));
+        svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`).attr("class", "y-axis").call(d3.axisLeft(yScale));
 
         // const genPDF = (data: number[], bins: d3.Bin<number, number>[]): { mean: number; lineData: { x: number; y: number }[] } => {
         //     const std = d3.deviation(data)!
@@ -189,7 +189,20 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
             .attr("y", d => yScale(d.length))
             .attr("height", d => height - yScale(d.length))
             .attr("fill", "steelblue")
-            .attr("opacity", 0.6);
+            .attr("opacity", 0.6)
+            .on("mousemove", function (event, d) {
+                d3.select(this).attr('style', 'fill: orange;');
+                setHoverInfo({
+                    type: 'bar',
+                    value: d,
+                    x: event.clientX,
+                    y: event.clientY,
+                })
+            })
+            .on("mouseleave", function () {
+                d3.select(this).attr('style', 'fill: steelblue;');
+                setHoverInfo(null)
+            })
 
 
         chartContent.append("path")
@@ -200,7 +213,6 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
             .attr("stroke-width", 2)
             .attr("d", line)
             .on("mousemove", function (event) {
-                // Find nearest x to mouse
                 const [mx] = d3.pointer(event)
                 const zx = xScale.invert(mx)
                 // Find nearest KDE point
@@ -281,7 +293,20 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
                 .attr("y", d => yScale(d.length))
                 .attr("height", d => height - yScale(d.length))
                 .attr("fill", "green")
-                .attr("opacity", 0.6);
+                .attr("opacity", 0.6)
+                .on("mousemove", function (event, d) {
+                    d3.select(this).attr('style', 'fill: orange;');
+                    setHoverInfo({
+                        type: 'bar',
+                        value: d,
+                        x: event.clientX,
+                        y: event.clientY,
+                    })
+                })
+                .on("mouseleave", function () {
+                    d3.select(this).attr('style', 'fill: green;');
+                    setHoverInfo(null)
+                })
 
             chartContent.append("path")
                 .datum(resultPoint.lineData)
@@ -304,6 +329,8 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
                         x: event.clientX,
                         y: event.clientY,
                     })
+
+                    
                 })
                 .on("mouseleave", () => setHoverInfo(null))
 
@@ -356,23 +383,6 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
                 .on("mouseleave", () => setHoverInfo(null))
         }
 
-        //Hover
-        chartContent.selectAll("rect.hist")
-            .on("mousemove", function (event, d) {
-                setHoverInfo({
-                    type: 'bar',
-                    value: d,
-                    x: event.clientX,
-                    y: event.clientY,
-                })
-            })
-            .on("mouseleave", function () {
-                setHoverInfo(null)
-            })
-
-
-
-
         // Zoom
         const zoom = d3.zoom<SVGSVGElement, unknown>()
             .scaleExtent([1, 10])
@@ -386,7 +396,7 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
 
                 chartContent.selectAll("line")
                     .attr("x1", d => zx(d))
-                    .attr("x2", d => zx(d));
+                    .attr("x2", d => zx(d))
 
                 chartContent.selectAll<SVGRectElement, d3.Bin<number, number>>("rect.hist")
                     .attr("x", d => zx(d.x0))
@@ -441,7 +451,7 @@ export default function HistogramChart({ data, selectedPoint }: HistogramChartPr
                             <>{hoverInfo.type.toUpperCase()}: {hoverInfo.value.toFixed(2)}</>
                         )}
                     </div>
-                , document.body)}
+                    , document.body)}
             </div>
 
         </div>

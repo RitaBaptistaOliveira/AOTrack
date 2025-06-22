@@ -14,7 +14,7 @@ interface FlatHeatmapProps {
   data: number[][]
   numIndexes: number
   numFrames: number
-  onPointSelect?: (point: { index: number; value: number; frame: number } | null) => void
+  onPointSelect?: (point: { frame: number; x: number; y: number | undefined; value: number; } | null) => void
 }
 
 export default function FlapHeatmap({
@@ -24,12 +24,9 @@ export default function FlapHeatmap({
   onPointSelect,
 }: FlatHeatmapProps) {
   const { interpolator } = useChartInteraction()
+  const heatmapBufferRef = useRef<HTMLCanvasElement | null>(null);
   const [fitMode, setFitMode] = useState<FitMode>("squeeze");
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const heatmapBuffer = useMemo(
-    () => generateHeatmapBuffer(data, numFrames, numIndexes, interpolator),
-    [data, numFrames, numIndexes, interpolator]
-  );
   const [selectedPoint, setSelectedPoint] = useState<{ index: number; frame: number; value: number } | null>(null)
   const [hoveredPoint, setHoveredPoint] = useState<{ index: number; frame: number; value: number } | null>(null)
   const [showTooltips, setShowTooltips] = useState(true)
@@ -61,39 +58,47 @@ export default function FlapHeatmap({
     handleMouseMove,
     handleMouseUp,
     handleMouseWheel,
-    downloadPNG,
-    scheduleDraw
+    downloadPNG
   } = useInteractions({
     externalCanvasRef: canvasRef,
     draw: (canvas, offset, zoom, drawArgs) => {
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
+      console.log(heatmapBufferRef.current)
+      console.log(canvasSize)
+      console.log(!heatmapBufferRef.current && canvasSize.width && canvasSize.height)
+      if (!heatmapBufferRef.current && canvasSize.width && canvasSize.height) {
+        heatmapBufferRef.current = generateHeatmapBuffer(
+          data,
+          numFrames,
+          numIndexes,
+          interpolator,
+          canvasSize
+        );
+      }
+
+      const buffer = heatmapBufferRef.current;
+      if (!buffer) return;
+
       drawFlatHeatmapFromBuffer(
         ctx,
         canvasSize,
         offset,
         zoom,
-        drawArgs.buffer,
+        buffer,
         drawArgs.selectedPoint
       )
     },
     drawArgs: {
-      buffer: heatmapBuffer,
       selectedPoint: selectedPoint ?? undefined
     }
-
   })
-
-  // useEffect(() => {
-  //   scheduleDraw()
-  // }, [data])
-
 
   function generateColorGradient(min = 0, max = 1, steps = 20) {
     const colorStops = Array.from({ length: steps }, (_, i) => {
       const value = min + ((max - min) * i) / (steps - 1)
-      const t = (value - min) / (max - min) // normalize to [0, 1]
-      return `${interpolator(t)} ${t * 100}%` // bottom to top
+      const t = (value - min) / (max - min)
+      return `${interpolator(t)} ${t * 100}%`
     })
     return `linear-gradient(to top, ${colorStops.join(', ')})`
   }
@@ -105,18 +110,14 @@ export default function FlapHeatmap({
       if (canvas.width === 0 || canvas.height === 0) return null
 
       const squareSize = Math.min(canvas.width, canvas.height)
-      const offsetX = (canvas.width - squareSize) / 2
-      const offsetY = (canvas.height - squareSize) / 2
+      // const offsetX = (canvas.width - squareSize) / 2
+      // const offsetY = (canvas.height - squareSize) / 2
 
-      const adjustedX = canvasX - offsetX
-      const adjustedY = canvasY - offsetY
+      // const adjustedX = canvasX - offsetX
+      // const adjustedY = canvasY - offsetY
 
-      if (adjustedX < 0 || adjustedX > squareSize || adjustedY < 0 || adjustedY > squareSize) {
-        return null
-      }
-
-      const dataX = (adjustedX - offsetRef.current.x) / zoom
-      const dataY = (adjustedY - offsetRef.current.y) / zoom
+      const dataX = (canvasX - offsetRef.current.x) / zoom
+      const dataY = (canvasY - offsetRef.current.y) / zoom
 
       const frame = Math.floor(dataX / (squareSize / numFrames))
       const index = Math.floor(dataY / (squareSize / numIndexes))
@@ -137,13 +138,28 @@ export default function FlapHeatmap({
         const value = data?.[point.frame]?.[point.index]
         if (value !== undefined && value !== prevPointRef.current?.value) {
           setSelectedPoint({ ...point, value })
-          onPointSelect?.({ ...point, value })
+          onPointSelect?.({ frame: point.frame, x: point.index, y: undefined, value: value })
         }
       } else {
         setSelectedPoint(null)
       }
     }
   }, [clickPosition])
+
+  useEffect(() => {
+    console.log("ENTER")
+    if (hoverPos && showTooltips) {
+      const point = getPointFromCoordinates(hoverPos.x, hoverPos.y)
+      if (point) {
+        const value = data?.[point.frame]?.[point.index]
+        if (value !== undefined) {
+          setHoveredPoint({ ...point, value })
+        }
+      } else {
+        setHoveredPoint(null)
+      }
+    }
+  }, [hoverPos])
 
   return (
     <div className="h-full flex flex-col">
@@ -158,7 +174,7 @@ export default function FlapHeatmap({
             {showControlBar ? <ChevronUp /> : <ChevronDown />}
           </Button>
 
-          
+
         </div>
       </div>
 
