@@ -85,7 +85,7 @@ export default function FlapHeatmap({
   })
 
   useEffect(() => {
-    if (selectedCell === null) return
+    if (selectedCell === null || numRows === 0) return
     console.log("CELL-FLAT: ", selectedCell)
     setSelectedPoint({index: selectedCell.x * numRows + selectedCell.y, frame: selectedCell.frame, value: selectedCell.value})
     console.log("POINT-FLAT: ", {index: selectedCell.x * numRows + selectedCell.y, frame: selectedCell.frame, value: selectedCell.value})
@@ -136,7 +136,7 @@ export default function FlapHeatmap({
       }
       return null
     },
-    [numIndexes, numFrames],
+    [numIndexes, numFrames, canvasSize],
   )
 
   useEffect(() => {

@@ -3,27 +3,31 @@ from fastapi import APIRouter, Request, HTTPException, Form
 from fastapi.responses import JSONResponse
 import numpy as np
 from ..session.actions import get_session_from_cookie
-from ..services.aot_extractor import extract_pixel_intensities
+from ..services.aot_extractor import extract_commands
 from astropy.visualization import MinMaxInterval, ZScaleInterval, PercentileInterval
 import json
 
 router = APIRouter()
 
-@router.post("/pixel/get-intensities")
-async def getIntensities(request: Request):
+@router.post("/command/get-commands")
+async def getCommands(request: Request):
     session = await get_session_from_cookie(request)
     if session is None or session.file_path is None:
         raise HTTPException(status_code=400, detail="No active session or file path")
 
     form = await request.form()
+    
     interval_type = form.get("interval_type", "minmax")
     scale_type = form.get("scale_type", "linear")
-
+    
     try:
-        image = extract_pixel_intensities(session.file_path)
+        flat_image, image  = extract_commands(session.file_path)
     except Exception as e:
         print(f"Error parsing JSON: {e}")
         raise HTTPException(status_code=400, detail="Invalid image data format")
+    
+    if image is None:
+        return JSONResponse({"original_data": np.asarray(flat_image).tolist(), "multiplied_data": None})
 
     interval_type = form.get("interval_type", "minmax")
 
@@ -38,11 +42,7 @@ async def getIntensities(request: Request):
             print(f'Invalid interval: {interval_type}')
             raise HTTPException(status_code=400, detail=f'Invalid interval: {interval_type}')
 
-    def process_slice(slice_2d):
-        modified = interval(slice_2d)
-        return modified
-    
-    modified_image = np.array([process_slice(slice_2d) for slice_2d in image])
+    modified_image = interval(image)
     
     scale_type = form.get("scale_type", "linear")
     def apply_scale(arr):
@@ -72,5 +72,5 @@ async def getIntensities(request: Request):
                 print(f'Invalid scale: {scale_type}')
                 raise HTTPException(status_code=400, detail=f'Invalid scale: {scale_type}')
 
-    result = np.array([apply_scale(slice_2d) for slice_2d in modified_image])
-    return JSONResponse({"data": np.asarray(result).tolist()})
+    result = apply_scale(modified_image)
+    return JSONResponse({"original_data": np.asarray(flat_image).tolist(), "multiplied_data": np.asarray(result).tolist()})

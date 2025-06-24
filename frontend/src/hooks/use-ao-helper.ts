@@ -1,86 +1,114 @@
-import type { MetadataSummary } from "../types/metadata_summary";
-import { useAoSession } from "../contexts/ao-session-context";
-import { useChartInteraction } from "@/contexts/chart-interactions-context";
+import type { MetadataSummary } from "../types/metadata_summary"
+import { useAoSession } from "../contexts/ao-session-context"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
 
 export function useAoHelper() {
 
-  const { setSession } = useAoSession();
-  const { setCurrentFrame, setIntervalType, setScaleType, currentFrame, intervalType, scaleType } = useChartInteraction();
+  const { setSession } = useAoSession()
+  const { intervalType, scaleType } = useChartInteraction()
 
   const uploadFile = async (selectedFile: File) => {
     if (!selectedFile.name.endsWith(".fits")) {
-      throw new Error("Only .fits files are allowed");
+      throw new Error("Only .fits files are allowed")
     }
-    const formData = new FormData();
-    formData.append("file", selectedFile);
+    const formData = new FormData()
+    formData.append("file", selectedFile)
 
     try {
       const response = await fetch("http://localhost:8000/upload", {
         method: "POST",
         body: formData,
         credentials: "include",
-      });
+      })
 
-      if (!response.ok) throw new Error("Upload failed");
+      if (!response.ok) throw new Error("Upload failed")
 
-      const data = await response.json();
+      const data = await response.json()
       if (!data.metadata) {
-        throw new Error("No metadata returned from server");
+        throw new Error("No metadata returned from server")
       }
-      setSession(selectedFile.name, selectedFile.size, parseMetadata(data.metadata));
+      setSession(selectedFile.name, selectedFile.size, parseMetadata(data.metadata))
     } catch (err) {
-      console.error("Upload error:", err);
+      console.error("Upload error:", err)
     }
-  };
+  }
 
   const fetchSession = async () => {
     try {
       const response = await fetch("http://localhost:8000/session", {
         method: "GET",
         credentials: "include",
-      });
+      })
 
-      if (!response.ok) throw new Error("Session fetch failed");
+      if (!response.ok) throw new Error("Session fetch failed")
 
-      const data = await response.json();
-      return data.active;
+      const data = await response.json()
+      return data.active
 
     } catch (err) {
-      console.error("Fetch session error:", err);
+      console.error("Fetch session error:", err)
     }
   }
 
   const getPixelIntensities = async () => {
-    const formData = new FormData();
-    formData.append("interval_type", intervalType.toString());
-    formData.append("scale_type", scaleType.toString());
+    const formData = new FormData()
+    formData.append("interval_type", intervalType.toString())
+    formData.append("scale_type", scaleType.toString())
     try {
       const response = await fetch("http://localhost:8000/pixel/get-intensities", {
         method: "POST",
         body: formData,
         credentials: "include",
-      });
+      })
 
-      if (!response.ok) throw new Error("Invalid response from server");
+      if (!response.ok) throw new Error("Invalid response from server")
 
-      const data = await response.json();
-      const modifiedFrame = data.data;
+      const data = await response.json()
+      const modifiedFrame = data.data
 
       if (!Array.isArray(modifiedFrame)) {
-        throw new Error("Invalid frame data format returned from server");
+        throw new Error("Invalid frame data format returned from server")
       }
 
-      return modifiedFrame;
+      return modifiedFrame
     } catch (err) {
-      console.error("Scale or Interval error when trying to apply to frame:", err);
+      console.error("Scale or Interval error when trying to apply to frame:", err)
     } return null
-  };
+  }
+
+  const getCommands = async () => {
+    const formData = new FormData()
+    formData.append("interval_type", intervalType.toString())
+    formData.append("scale_type", scaleType.toString())
+    try {
+      const response = await fetch("http://localhost:8000/command/get-commands", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      })
+
+      if (!response.ok) throw new Error("Invalid response from server")
+
+      const data = await response.json()
+      const original_data = data.original_data
+      const multiplied_data = data.multiplied_data
+
+      if (!Array.isArray(original_data)) {
+        throw new Error("Invalid command data format returned from server")
+      }
+
+      return {original_data, multiplied_data}
+    } catch (err) {
+      console.error("Scale or Interval error when trying to apply to frame:", err)
+    } return null
+  }
 
   return {
     uploadFile,
     fetchSession,
-    getPixelIntensities
-  };
+    getPixelIntensities,
+    getCommands
+  }
 }
 
 function parseMetadata(raw: any): MetadataSummary {
@@ -141,5 +169,5 @@ function parseMetadata(raw: any): MetadataSummary {
     sources: (raw.sources ?? []).map((src: any) => ({
       uid: src.uid,
     })),
-  };
+  }
 }

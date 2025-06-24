@@ -22,7 +22,6 @@ async def upload_file(request: Request, file: UploadFile = File(...)):
     
     if session is not None:
         await update_session(session, tmp_path)
-        # print(f"Session Update: {time.time() - start:.2f} seconds after start")
         return JSONResponse({"metadata": metadata})
     else:
         new_session_id = await create_session(tmp_path)

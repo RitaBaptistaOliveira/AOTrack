@@ -16,7 +16,7 @@ interface FrameProps {
 }
 
 export default function Pixels() {
-  const isLargeScreen = useMediaQuery({ minWidth: 768 })
+  // const isLargeScreen = useMediaQuery({ minWidth: 768 })
   const [currentFrame, setCurrentFrame] = useState(0)
   const [selectedCell, setSelectedCell] = useState<{ frame: number, x: number, y: number, value: number } | null>(null)
   const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, value: number } | null>(null)

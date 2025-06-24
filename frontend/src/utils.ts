@@ -54,22 +54,33 @@ export function generateHeatmapBuffer(
     let w
     let h
     let cellSize
+
+    console.log("generateHeatmapBuffer called with:");
+    console.log("canvasSize:", canvasSize);
+    console.log("numFrames:", numFrames, "numIndexes:", numIndexes);
+
     if (canvasSize.width === 0 || canvasSize.height === 0) {
         w = numFrames
         h = numIndexes
         cellSize = 1
+        console.log("Using default size (1px cells):", { w, h, cellSize });
     } else {
         cellSize = Math.floor(canvasSize.width / numFrames)
         w = cellSize * numFrames
         h = cellSize * numIndexes
+        console.log("Calculated canvas size:", { cellSize, w, h });
     }
 
     const canvas = document.createElement("canvas")
     canvas.width = w
     canvas.height = h
+    console.log("Canvas created with size:", canvas.width, canvas.height);
 
     const ctx = canvas.getContext("2d");
-    if (!ctx) return canvas;
+    if (!ctx) {
+        console.warn("Could not get canvas context!");
+        return canvas;
+    }
 
     for (let f = 0; f < numFrames; f++) {
         const x = f * cellSize
@@ -80,7 +91,7 @@ export function generateHeatmapBuffer(
             ctx.fillRect(x, y, cellSize, cellSize);
         }
     }
-
+    console.log("Heatmap drawing complete.");
     return canvas;
 }
 
