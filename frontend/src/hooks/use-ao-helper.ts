@@ -1,11 +1,13 @@
 import type { MetadataSummary } from "../types/metadata_summary"
 import { useAoSession } from "../contexts/ao-session-context"
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
+import { useRef } from "react"
 
 export function useAoHelper() {
 
   const { setSession } = useAoSession()
   const { intervalType, scaleType } = useChartInteraction()
+  const wfsIndexRef = useRef(0)
 
   const uploadFile = async (selectedFile: File) => {
     if (!selectedFile.name.endsWith(".fits")) {
@@ -54,8 +56,9 @@ export function useAoHelper() {
     const formData = new FormData()
     formData.append("interval_type", intervalType.toString())
     formData.append("scale_type", scaleType.toString())
+    formData.append("wfs_index", wfsIndexRef.current.toString())
     try {
-      const response = await fetch("http://localhost:8000/pixel/get-intensities", {
+      const response = await fetch("http://localhost:8000/pixel/get-frames", {
         method: "POST",
         body: formData,
         credentials: "include",

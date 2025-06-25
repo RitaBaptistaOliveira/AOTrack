@@ -15,7 +15,7 @@ interface HeatmapVisualizationProps {
   numRows: number
   numCols: number
   numFrames: number
-  onCellSelect?: (cell: { x: number; y: number; value: number; frame: number } | null) => void
+  onCellSelect: (cell: { frame: number, x: number, y: number, value: number} | null) => void
   onFrameChange?: (frame: number) => void
   selectedPoint: { frame: number, index: number, value: number } | null
 }
@@ -63,26 +63,18 @@ export default function Visualization({
     scheduleDraw
   } = useInteractions({
     externalCanvasRef: canvasRef,
-    draw: (canvas, offset, zoom, drawArgs) => {
+    draw: (canvas, offset, zoom) => {
       drawHeatmap(
         canvas,
         offset,
         zoom,
-        drawArgs.data,
-        drawArgs.numRows,
-        drawArgs.numCols,
-        drawArgs.selectedCell,
-        drawArgs.interpolator
+        data[currentFrame],
+        numRows,
+        numCols,
+        selectedCell,
+        interpolator
       )
-    },
-    drawArgs: {
-      data: data[currentFrame],
-      numRows: numRows,
-      numCols: numCols,
-      selectedCell: selectedCell,
-      interpolator: interpolator
     }
-
   })
 
   useEffect(() => {
@@ -118,9 +110,9 @@ export default function Visualization({
     if (cellChanged) {
       prevSelectedCellRef.current = selectedCell
       if (selectedCell) {
-        onCellSelect?.({ x: selectedCell.x, y: selectedCell.y, value: selectedCell.value, frame: currentFrame })
+        onCellSelect({frame: currentFrame, x: selectedCell.x, y: selectedCell.y, value: selectedCell.value })
       } else {
-        onCellSelect?.(null)
+        onCellSelect(null)
       }
       requestDraw()
     }

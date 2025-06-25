@@ -4,105 +4,181 @@ import { useRef, useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import ControlBar from "../controls/control-bar"
-import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import { useInteractions } from "@/hooks/use-interactions"
-import { drawFlatHeatmapFromBuffer, generateHeatmapBuffer } from "@/utils"
-type FitMode = "squeeze" | "scroll";
+import { drawFlatHeatmapFromBuffer } from "@/utils"
+import * as d3 from "d3"
 
+const TILE_SIZE = 256
+const CELL_SIZE = 6
 
 interface FlatHeatmapProps {
-  data: number[][]
-  numRows: number
-  numIndexes: number
   numFrames: number
-  onPointSelect?: (point: { frame: number; x: number; y: number | undefined; value: number; } | null) => void
+  numIndexes: number
+  minValue: number
+  maxValue: number
+  onPointSelect: (point: { frame: number; x: number; y: number | undefined; value: number; } | null) => void
   selectedCell: { frame: number, x: number, y: number, value: number } | null
 }
 
 export default function FlapHeatmap({
-  data,
-  numRows,
-  numIndexes,
   numFrames,
+  numIndexes,
+  minValue,
+  maxValue,
   onPointSelect,
   selectedCell
 }: FlatHeatmapProps) {
-  const { interpolator } = useChartInteraction()
-  const heatmapBufferRef = useRef<HTMLCanvasElement | null>(null);
-  const [fitMode, setFitMode] = useState<FitMode>("squeeze");
+  const tileCache = useRef(new Map<string, { canvas: HTMLCanvasElement; frameStart: number; indexStart: number }>())
+  const interpolator = d3.scaleSequential([minValue, maxValue], d3.interpolateViridis)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [selectedPoint, setSelectedPoint] = useState<{ index: number; frame: number; value: number } | null>(null)
-  const [hoveredPoint, setHoveredPoint] = useState<{ index: number; frame: number; value: number } | null>(null)
+  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
+  const [hoveredPoint, setHoveredPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
   const [showTooltips, setShowTooltips] = useState(true)
   const [showLegend, setShowLegend] = useState(true)
   const [showControlBar, setShowControlBar] = useState(true)
-  const maxValue = data.reduce(
-    (max, row) => Math.max(max, ...row),
-    -Infinity
-  );
-  const minValue = data.reduce(
-    (min, row) => Math.min(min, ...row),
-    Infinity
-  );
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
+  const prevPointRef = useRef<{ frame: number, index: number, value: number } | null>(null)
+  const lastVisibleKeys = useRef<Set<string>>(new Set())
 
-  const prevPointRef = useRef<{ index: number; frame: number; value: number } | null>(null)
-  const {
-    mode,
-    canvasSize,
-    setMode,
-    clickPosition,
-    hoverPos,
-    offsetRef,
-    zoomRef,
-    zoomIn,
-    zoomOut,
-    resetZoom,
-    handleMouseDown,
-    handleMouseLeave,
-    handleMouseMove,
-    handleMouseUp,
-    handleMouseWheel,
-    handleKeyDown,
-    downloadPNG,
-    scheduleDraw
-  } = useInteractions({
-    externalCanvasRef: canvasRef,
-    draw: (canvas, offset, zoom, drawArgs) => {
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return
+  const getVisibleTiles = (
+    offset: { x: number; y: number },
+    zoom: number,
+    width: number,
+    height: number
+  ) => {
+    const frameStart = Math.floor(-offset.x / (CELL_SIZE * zoom * TILE_SIZE)) * TILE_SIZE
+    const indexStart = Math.floor(-offset.y / (CELL_SIZE * zoom * TILE_SIZE)) * TILE_SIZE
 
-      drawFlatHeatmapFromBuffer(
-        ctx,
-        offset,
-        zoom,
-        heatmapBufferRef.current,
-        drawArgs.selectedPoint
-      )
-    },
-    drawArgs: {
-      selectedPoint: selectedPoint ?? undefined
+    const cols = Math.ceil(width / (CELL_SIZE * zoom * TILE_SIZE)) + 1
+    const rows = Math.ceil(height / (CELL_SIZE * zoom * TILE_SIZE)) + 1
+
+    const tiles = []
+    for (let i = 0; i < cols; i++) {
+      for (let j = 0; j < rows; j++) {
+        const fStart = frameStart + i * TILE_SIZE
+        const iStart = indexStart + j * TILE_SIZE
+        if (fStart < 0 || iStart < 0 || fStart > numFrames || iStart > numIndexes) continue
+
+        const key = `${fStart}-${fStart + TILE_SIZE}:${iStart}-${iStart + TILE_SIZE}`
+
+        tiles.push({
+          key,
+          frameStart: fStart,
+          frameEnd: fStart + TILE_SIZE,
+          indexStart: iStart,
+          indexEnd: iStart + TILE_SIZE
+        })
+      }
     }
-  })
+
+    return tiles
+  }
+
+  const fetchAndRenderTile = async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
+    const key = `${frameStart}-${frameEnd}:${indexStart}-${indexEnd}`
+    if (tileCache.current.has(key)) return
+
+    const form = new FormData()
+    form.append("frame_start", frameStart.toString())
+    form.append("frame_end", frameEnd.toString())
+    form.append("index_start", indexStart.toString())
+    form.append("index_end", indexEnd.toString())
+    form.append("wfs_index", "0")
+
+    const res = await fetch("http://localhost:8000/pixel/flat-tile", {
+      method: "POST",
+      body: form,
+      credentials: "include"
+    })
+
+    const json = await res.json()
+    const tileData = json.tile
+
+    const canvas = document.createElement("canvas")
+    canvas.width = tileData.length * CELL_SIZE
+    canvas.height = tileData[0].length * CELL_SIZE
+    const ctx = canvas.getContext("2d")!
+
+    for (let i = 0; i < tileData.length; i++) {
+      for (let j = 0; j < tileData[i].length; j++) {
+        ctx.fillStyle = interpolator(tileData[i][j])
+        ctx.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+      }
+    }
+
+    tileCache.current.set(key, { canvas, frameStart, indexStart })
+
+  }
+
+  const draw = useCallback((canvas: HTMLCanvasElement, offset: { x: number; y: number }, zoom: number) => {
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    const visible = getVisibleTiles(offset, zoom, canvas.width, canvas.height)
+    const visibleKeys = new Set(visible.map(t => t.key))
+
+    const currentVisibleKeys = new Set(visibleKeys)
+    if (visibleKeys.size > 0) {
+      lastVisibleKeys.current = currentVisibleKeys
+    }
+
+    const buffers = visible
+      .map(({ key }) => tileCache.current.get(key))
+      .filter(Boolean) as { canvas: HTMLCanvasElement; frameStart: number; indexStart: number }[]
+
+    drawFlatHeatmapFromBuffer(ctx, offset, zoom, buffers, CELL_SIZE, numFrames, numIndexes, selectedPoint || undefined)
+
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
+    debounceTimeout.current = setTimeout(() => {
+      visible.forEach(tile => {
+        fetchAndRenderTile(tile.frameStart, tile.frameEnd, tile.indexStart, tile.indexEnd)
+      })
+    }, 150)
+
+    for (const key of tileCache.current.keys()) {
+      if (!lastVisibleKeys.current.has(key)) {
+        tileCache.current.delete(key)
+      }
+    }
+  }, [getVisibleTiles, selectedPoint])
+
+  const {
+    mode, setMode, clickPosition, hoverPos, offsetRef, zoomRef, zoomIn, zoomOut, resetZoom, handleMouseDown,
+    handleMouseLeave, handleMouseMove, handleMouseUp, handleMouseWheel, handleKeyDown, downloadPNG, requestDraw }
+    = useInteractions({ externalCanvasRef: canvasRef, draw })
 
   useEffect(() => {
-    if (selectedCell === null || numRows === 0) return
-    console.log("CELL-FLAT: ", selectedCell)
-    setSelectedPoint({index: selectedCell.x * numRows + selectedCell.y, frame: selectedCell.frame, value: selectedCell.value})
-    console.log("POINT-FLAT: ", {index: selectedCell.x * numRows + selectedCell.y, frame: selectedCell.frame, value: selectedCell.value})
+    if (selectedCell === null) return
+    setSelectedPoint({
+      frame: selectedCell.frame,
+      index: selectedCell.x * 1 + selectedCell.y, //!!!!!!!!!!!!!!!!!!!!!! missing the number of rows
+      value: selectedCell.value
+    })
   }, [selectedCell])
 
   useEffect(() => {
-    if (canvasSize.width && canvasSize.height) {
-      heatmapBufferRef.current = generateHeatmapBuffer(
-        data,
-        numFrames,
-        numIndexes,
-        interpolator,
-        canvasSize
-      );
+    if (clickPosition) {
+      const point = getPointFromCoordinates(clickPosition.x, clickPosition.y)
+      console.log(point)
+      const prev = prevPointRef.current
+      if (point) {
+        if (prev === null || (point.frame !== prev.frame && point.index !== prev.index)) {
+          const value = getValueFromTileCache(point.frame, point.index)
+          if (value !== undefined && (prev === null || value !== prev.value)) {
+            setSelectedPoint({ ...point, value })
+            onPointSelect({ frame: point.frame, x: point.index, y: undefined, value: value })
+          }
+        }
+      } else {
+        setSelectedPoint(null)
+        onPointSelect(null)
+      }
     }
-    scheduleDraw()
-  }, [data, numFrames, numIndexes, interpolator, canvasSize])
+  }, [clickPosition, onPointSelect])
+
+  useEffect(() => {
+    requestDraw()
+  }, [selectedPoint])
 
   function generateColorGradient(min = 0, max = 1, steps = 20) {
     const colorStops = Array.from({ length: steps }, (_, i) => {
@@ -113,67 +189,49 @@ export default function FlapHeatmap({
     return `linear-gradient(to top, ${colorStops.join(', ')})`
   }
 
-  const getPointFromCoordinates = useCallback(
-    (canvasX: number, canvasY: number) => {
-      const canvas = canvasRef.current
-      if (!canvas) return
-      if (canvas.width === 0 || canvas.height === 0) return null
+  const getPointFromCoordinates = useCallback((canvasX: number, canvasY: number) => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
 
-      const zoomLevel = zoomRef.current
-      const offset = offsetRef.current
+    const zoomLevel = zoomRef.current
+    const offset = offsetRef.current
 
-      const cellSize = Math.floor(canvas.width / numFrames)
-      const offsetX = (canvas.width - (heatmapBufferRef.current?.width ?? 0)) / 2
-      const x = (canvasX - offset.x - offsetX) / zoomLevel
-      const y = (canvasY - offset.y) / zoomLevel
+    const x = (canvasX - offset.x) / zoomLevel
+    const y = (canvasY - offset.y) / zoomLevel
 
+    const frame = Math.floor(x / CELL_SIZE)
+    const index = Math.floor(y / CELL_SIZE)
 
-      const frame = Math.floor(x / cellSize)
-      const index = Math.floor(y / cellSize)
+    if (frame < 0 || index < 0) return null
 
-      if (frame >= 0 && frame < numFrames && index >= 0 && index < numIndexes) {
-        return { frame: frame, index: index }
-      }
-      return null
-    },
-    [numIndexes, numFrames, canvasSize],
-  )
+    return { frame, index }
+  }, [zoomRef, offsetRef, canvasRef])
 
-  useEffect(() => {
-    const pointChanged =
-      selectedPoint?.frame !== prevPointRef.current?.frame || selectedPoint?.index !== prevPointRef.current?.index || selectedPoint?.value !== prevPointRef.current?.value
+  function getValueFromTileCache(frame: number, index: number): number | undefined {
+    const frameTile = Math.floor(frame / TILE_SIZE) * TILE_SIZE
+    const indexTile = Math.floor(index / TILE_SIZE) * TILE_SIZE
+    const key = `${frameTile}-${frameTile + TILE_SIZE}:${indexTile}-${indexTile + TILE_SIZE}`
+    const tile = tileCache.current.get(key)
+    if (!tile) return undefined
 
-    if (pointChanged) {
-      prevPointRef.current = selectedPoint
-      if (selectedPoint) {
-        onPointSelect?.({ frame: selectedPoint.frame, x: selectedPoint.index, y: undefined, value: selectedPoint.value })
-      } else {
-        onPointSelect?.(null)
-      }
-      scheduleDraw()
-    }
-  }, [selectedPoint])
+    const i = frame - frameTile
+    const j = index - indexTile
+    const tileCanvas = tile.canvas
 
-  // If the clicked position changes, so does the selected sell
-  useEffect(() => {
-    if (clickPosition) {
-      const point = getPointFromCoordinates(clickPosition.x, clickPosition.y)
-      if (point) {
-        const value = data?.[point.frame]?.[point.index]
-        if (value !== undefined && value !== prevPointRef.current?.value) {
-          setSelectedPoint({ ...point, value })
-        }
-      } else {
-        setSelectedPoint(null)
-      }
-    }
-  }, [clickPosition])
+    const tileCtx = tileCanvas.getContext("2d")
+    if (!tileCtx) return undefined
+
+    const pixel = tileCtx.getImageData(j * CELL_SIZE, i * CELL_SIZE, 1, 1).data
+
+    const gray = pixel[0] / 255 // !!!!
+    return gray
+  }
 
   useEffect(() => {
     if (hoverPos && showTooltips) {
       const point = getPointFromCoordinates(hoverPos.x, hoverPos.y)
       if (point) {
-        const value = data?.[point.frame]?.[point.index]
+        const value = getValueFromTileCache(point.frame, point.index)
         if (value !== undefined) {
           setHoveredPoint({ ...point, value })
         }
@@ -189,14 +247,9 @@ export default function FlapHeatmap({
       <div className="flex justify-between items-center flex-shrink-0">
         <h2 className="text-lg font-semibold">Flat Heatmap</h2>
         <div className="flex gap-1">
-          <Button variant="ghost" size="icon" onClick={() => setFitMode(f => f === "squeeze" ? "scroll" : "squeeze")}>
-            {fitMode}
-          </Button>
           <Button variant="ghost" size="icon" onClick={() => setShowControlBar(!showControlBar)}>
             {showControlBar ? <ChevronUp /> : <ChevronDown />}
           </Button>
-
-
         </div>
       </div>
 

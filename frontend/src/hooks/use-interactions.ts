@@ -6,22 +6,23 @@ export interface Point {
   y: number
 }
 
-interface UseCanvasInteractionsProps<TDrawArgs> {
+interface UseCanvasInteractionsProps {
   externalCanvasRef: React.RefObject<HTMLCanvasElement | null>
   draw: (
     canvas: HTMLCanvasElement,
     offset: { x: number, y: number },
-    zoom: number,
-    drawArgs: TDrawArgs
-  ) => void
-  drawArgs: TDrawArgs
+    zoom: number) => void
 }
 
-export function useInteractions<TDrawArgs>({
+export function useInteractions({
   externalCanvasRef,
-  draw,
-  drawArgs,
-}: UseCanvasInteractionsProps<TDrawArgs>) {
+  draw
+}: UseCanvasInteractionsProps) {
+
+  const drawRef = useRef(draw)
+  useEffect(() => {
+    drawRef.current = draw
+  }, [draw])
 
   const canvasRef = externalCanvasRef ?? useRef<HTMLCanvasElement | null>(null)
   const [mode, setMode] = useState<BarMode>("select")
@@ -47,8 +48,8 @@ export function useInteractions<TDrawArgs>({
   const requestDraw = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    draw(canvas, offsetRef.current, zoomRef.current, drawArgs)
-  }, [draw, drawArgs])
+    drawRef.current(canvas, offsetRef.current, zoomRef.current)
+  }, [draw])
 
   // Zoom controls
   const zoomIn = () => {
@@ -76,6 +77,7 @@ export function useInteractions<TDrawArgs>({
     if (mode === "select") {
       setClickPosition(coords)
     }
+    requestDraw()
 
   }, [mode])
 
@@ -109,13 +111,13 @@ export function useInteractions<TDrawArgs>({
 
     if (e.shiftKey) {
       offsetRef.current.y -= e.deltaY
-      scheduleDraw()
+      requestDraw()
       return
     }
 
     if (e.altKey) {
       offsetRef.current.x -= e.deltaY
-      scheduleDraw()
+      requestDraw()
       return
     }
 
@@ -123,20 +125,20 @@ export function useInteractions<TDrawArgs>({
     const mouseX = (e.clientX - rect.left)
     const mouseY = (e.clientY - rect.top)
 
+    const prevZoom = zoomRef.current
     const zoomFactor = 1.1
     const delta = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor
+    const newZoom = Math.min(Math.max(prevZoom * delta, 0.1), 10)
 
-    // Get data-space coordinates before zoom
-    const beforeZoomX = (mouseX - offsetRef.current.x) / zoomRef.current
-    const beforeZoomY = (mouseY - offsetRef.current.y) / zoomRef.current
+    const worldX = (mouseX - offsetRef.current.x) / prevZoom
+    const worldY = (mouseY - offsetRef.current.y) / prevZoom
 
-    const newZoom = Math.min(Math.max(zoomRef.current * delta, 0.1), 10)
     zoomRef.current = newZoom
 
     // Adjust offset to keep mouse position stable
-    offsetRef.current.x = mouseX - beforeZoomX * newZoom
-    offsetRef.current.y = mouseY - beforeZoomY * newZoom
-    scheduleDraw()
+    offsetRef.current.x = mouseX - worldX * newZoom
+    offsetRef.current.y = mouseY - worldY * newZoom
+    requestDraw()
   }, [])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
