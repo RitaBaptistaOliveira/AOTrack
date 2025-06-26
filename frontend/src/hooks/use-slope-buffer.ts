@@ -47,7 +47,9 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
   const [numBins, setNumBins] = useState(30)
 
   const [globalHistogramData, setGlobalHistogramData] = useState<any | undefined>()
+
   const [histogramData, setHistogramData] = useState<any | undefined>()
+
   const [histogramLoading, setHistogramLoading] = useState(false)
   const [histogramError, setHistogramError] = useState<Error | null>(null)
 
@@ -149,6 +151,7 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
           numBins,
           index
         })
+        console.log(res)
         setHistogramData({
           counts: res.counts_point,
           bins: res.bins_point,
@@ -185,8 +188,8 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
       }
     }
 
-    // fetchCharts()
-    // fetchGlobalHistogramData()
+    fetchCharts()
+    fetchGlobalHistogramData()
   }, [wfsIndex])
 
   const fetchPointStatsData = useCallback(

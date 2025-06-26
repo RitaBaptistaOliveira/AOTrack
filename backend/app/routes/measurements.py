@@ -90,13 +90,13 @@ async def get_flat_tile_post(request: Request):
 
         measurements = wfs_list[wfs_index].measurements.data
         
-        x_measurements = measurements[:, 0, :]  # shape [frames, indices]
-        y_measurements = measurements[:, 1, :]  # shape [frames, indices]
-        
-        num_frames, num_cols, num_rows = x_measurements.shape
+        x_measurements = measurements[:, 0, :]
+        y_measurements = measurements[:, 1, :]
+                
+        num_frames, num_index = x_measurements.shape
 
         frame_end = min(frame_end, num_frames)
-        index_end = min(index_end, num_cols * num_rows)
+        index_end = min(index_end, num_index)
 
         x_tile_data = []
         y_tile_data = []
@@ -259,14 +259,17 @@ async def get_slope_histogram(request: Request):
     wfs_index = int(form.get("wfs_index", 0))
     num_bins = int(form.get("num_bins", 30))
 
-    index = int(form.get("index"))
+    index = form.get("index")
     point_selected = index is not None
+    if(point_selected):
+        index = int(form.get("index"))
+    
 
     try:
         system = aotpy.AOSystem.read_from_file(session.file_path)
         measurements = system.wavefront_sensors[wfs_index].measurements.data
-        x = measurements[:, 0, :].flatten()
-        y = measurements[:, 1, :].flatten()
+        x = np.mean(measurements[:, 0, :], axis=0)
+        y = np.mean(measurements[:, 1, :], axis=0)
         min = np.min(measurements)
         max = np.max(measurements)
         del system

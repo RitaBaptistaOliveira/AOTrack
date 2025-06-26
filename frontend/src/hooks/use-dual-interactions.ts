@@ -72,10 +72,20 @@ export function useDualInteractions({
 
   // Mouse events
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    const coords = getCanvasCoordinates(e)
+    const targetCanvas = e.target as HTMLCanvasElement
+    if (!targetCanvas) return
+    const index = canvasRefs.current.findIndex(c => c === targetCanvas)
+    if (index === -1) return
+
+    const canvas = canvasRefs.current[index]
+    if (!canvas) return
+
+    const coords = getCanvasCoordinates(e, canvas)
     if (!coords) return
+
     dragStartRef.current = coords
     isDraggingRef.current = true
+
     if (mode === "select") {
       setClickPosition(coords)
       console.log("[useInteractions] clickPosition set to:", coords);
@@ -90,7 +100,15 @@ export function useDualInteractions({
   }
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    const coords = getCanvasCoordinates(e)
+    const targetCanvas = e.target as HTMLCanvasElement
+    if (!targetCanvas) return
+    const index = canvasRefs.current.findIndex(c => c === targetCanvas)
+    if (index === -1) return
+
+    const canvas = canvasRefs.current[index]
+    if (!canvas) return
+
+    const coords = getCanvasCoordinates(e, canvas)
     if (!coords) return
     setHoverPos(coords)
     if (isDraggingRef.current && dragStartRef.current && mode === "pan") {
@@ -109,7 +127,12 @@ export function useDualInteractions({
   }
 
   const handleMouseWheel = useCallback((e: React.WheelEvent) => {
-    const canvas = canvasRefs.current[0]
+    const targetCanvas = e.target as HTMLCanvasElement
+    if (!targetCanvas) return
+    const index = canvasRefs.current.findIndex(c => c === targetCanvas)
+    if (index === -1) return
+
+    const canvas = canvasRefs.current[index]
     if (!canvas) return
 
     if (e.shiftKey) {
@@ -182,8 +205,7 @@ export function useDualInteractions({
     })
   }, [])
 
-  const getCanvasCoordinates = useCallback((e: React.MouseEvent) => {
-    const canvas = canvasRefs.current[0]
+  const getCanvasCoordinates = useCallback((e: React.MouseEvent, canvas: HTMLCanvasElement) => {
     if (!canvas) return null
     const rect = canvas.getBoundingClientRect()
     return { x: e.clientX - rect.left, y: e.clientY - rect.top }

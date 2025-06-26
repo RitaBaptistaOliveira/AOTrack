@@ -12,7 +12,6 @@ export function drawHeatmap(
     if (!data) {
         return
     }
-    console.log(interpolator)
     const squareSize = Math.min(canvas.width, canvas.height)
     const offsetX = (canvas.width - squareSize) / 2
     const offsetY = (canvas.height - squareSize) / 2
@@ -70,15 +69,12 @@ export function drawFlatHeatmapFromBuffer(
 
 
     ctx.setTransform(zoom, 0, 0, zoom, offset.x, offset.y);
-    console.log("DRAWING")
     // Draw each tile using pre-rendered canvas
     for (const { canvas, frameStart, indexStart } of tileBuffers) {
         const x = frameStart * cellSize
         const y = indexStart * cellSize
         ctx.drawImage(canvas, x, y)
     }
-
-    console.log(selected)
 
     if (selected) {
         const { frame, index } = selected
