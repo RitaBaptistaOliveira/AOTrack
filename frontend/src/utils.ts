@@ -7,11 +7,12 @@ export function drawHeatmap(
     numRows: number,
     numCols: number,
     selectedCell: { x: number; y: number } | null,
-    interpolator: (t: number) => string,
+    interpolator: d3.ScaleSequential<string, never>
 ) {
     if (!data) {
         return
     }
+    console.log(interpolator)
     const squareSize = Math.min(canvas.width, canvas.height)
     const offsetX = (canvas.width - squareSize) / 2
     const offsetY = (canvas.height - squareSize) / 2

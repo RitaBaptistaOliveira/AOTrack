@@ -10,3 +10,13 @@ export interface HeatmapProps {
     numCols: number
   }
 }
+export interface TileBuffer {
+  canvas: HTMLCanvasElement
+  frameStart: number
+  indexStart: number
+}
+
+export interface DataPoint {
+  x: number
+  y: number
+}

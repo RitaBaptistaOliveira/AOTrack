@@ -1,6 +1,6 @@
 import type { ColorMap, IntervalType, ScaleType } from "@/types/visualization";
 import React, { createContext, useContext, useState } from "react";
-import * as d3 from "d3";
+import * as d3 from "d3"
 
 type Point = { x: number; y: number };
 

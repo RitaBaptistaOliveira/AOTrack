@@ -1,10 +1,3 @@
-import * as d3 from "d3"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import {
   Table,
   TableBody,
@@ -14,53 +7,42 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-interface DataPoint {
-  x: number
-  y: number
-}
-
 interface StatTableProps {
-  data: DataPoint[]
+  data: { max: number, mean: number, median: number, min: number, std: number, variance: number }
+  selectedPoint?: { max: number, mean: number, median: number, min: number, std: number, variance: number }
 }
 
-export default function StatTable({ data }: StatTableProps) {
-  if (!data.length) return null
-
-  const values = data.map((d) => d.y)
-  const count = values.length
-  const min = d3.min(values)!
-  const max = d3.max(values)!
-  const mean = d3.mean(values)!
-  const median = d3.median(values)!
-  const std = d3.deviation(values)!
-  const variance = std * std
+export default function StatTable({ data, selectedPoint }: StatTableProps) {
 
   const stats = [
-    { label: "Count", value: count },
-    { label: "Min", value: min.toFixed(2) },
-    { label: "Max", value: max.toFixed(2) },
-    { label: "Mean", value: mean.toFixed(2) },
-    { label: "Median", value: median.toFixed(2) },
-    { label: "Std Dev", value: std.toFixed(2) },
-    { label: "Variance", value: variance.toFixed(2) },
+    { label: "Min", globalValue: data.min, selectedValue: selectedPoint?.min },
+    { label: "Max", globalValue: data.max, selectedValue: selectedPoint?.max },
+    { label: "Mean", globalValue: data.mean, selectedValue: selectedPoint?.mean },
+    { label: "Median", globalValue: data.median, selectedValue: selectedPoint?.median },
+    { label: "Std Dev", globalValue: data.std, selectedValue: selectedPoint?.std },
+    { label: "Variance", globalValue: data.variance, selectedValue: selectedPoint?.variance },
   ]
 
   return (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-32">Metric</TableHead>
-              <TableHead>Value</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {stats.map((stat) => (
-              <TableRow key={stat.label}>
-                <TableCell className="font-medium">{stat.label}</TableCell>
-                <TableCell>{stat.value}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-32">Metric</TableHead>
+          <TableHead>Global</TableHead>
+          {selectedPoint && <TableHead>Selected Point</TableHead>}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {stats.map((stat) => (
+          <TableRow key={stat.label}>
+            <TableCell className="font-medium">{stat.label}</TableCell>
+            <TableCell>{stat.globalValue.toFixed(0)}</TableCell>
+            {selectedPoint && (
+              <TableCell>{stat.selectedValue?.toFixed(0)}</TableCell>
+            )}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }

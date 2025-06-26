@@ -51,7 +51,7 @@ export default function DropdownGroup() {
         </SelectContent>
       </Select>
 
-      <Select value={colorMap} onValueChange={(value) => {setColorMap(value as ColorMap);}}>
+      <Select value={colorMap} onValueChange={(value) => {setColorMap(value as ColorMap)}}>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>

@@ -17,7 +17,7 @@ interface FlatHeatmapProps {
   minValue: number
   maxValue: number
   onPointSelect: (point: { frame: number; x: number; y: number | undefined; value: number; } | null) => void
-  selectedCell: { frame: number, x: number, y: number, value: number } | null
+  selectedCell: { frame: number, col: number, row: number, value: number } | null
 }
 
 export default function FlapHeatmap({
@@ -148,18 +148,21 @@ export default function FlapHeatmap({
     = useInteractions({ externalCanvasRef: canvasRef, draw })
 
   useEffect(() => {
-    if (selectedCell === null) return
-    setSelectedPoint({
-      frame: selectedCell.frame,
-      index: selectedCell.x * 1 + selectedCell.y, //!!!!!!!!!!!!!!!!!!!!!! missing the number of rows
-      value: selectedCell.value
-    })
+    if (selectedCell === null) {
+      setSelectedPoint(null)
+    } else {
+      setSelectedPoint({
+        frame: selectedCell.frame,
+        index: selectedCell.col * 2 + selectedCell.row, //!!!!!!!!!!!!!!!!!!!!!! missing the number of rows
+        value: selectedCell.value
+      })
+    }
+
   }, [selectedCell])
 
   useEffect(() => {
     if (clickPosition) {
       const point = getPointFromCoordinates(clickPosition.x, clickPosition.y)
-      console.log(point)
       const prev = prevPointRef.current
       if (point) {
         if (prev === null || (point.frame !== prev.frame && point.index !== prev.index)) {
@@ -174,10 +177,13 @@ export default function FlapHeatmap({
         onPointSelect(null)
       }
     }
-  }, [clickPosition, onPointSelect])
+  }, [clickPosition])
 
   useEffect(() => {
-    requestDraw()
+    const id = requestAnimationFrame(() => {
+      requestDraw()
+    });
+    return () => cancelAnimationFrame(id);
   }, [selectedPoint])
 
   function generateColorGradient(min = 0, max = 1, steps = 20) {

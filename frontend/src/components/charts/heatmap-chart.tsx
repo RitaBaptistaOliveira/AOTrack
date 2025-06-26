@@ -9,13 +9,18 @@ import ControlBar from "../controls/control-bar"
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import { useInteractions } from "@/hooks/use-interactions"
 import { drawHeatmap } from "@/utils"
+import type { ColorMap } from "@/types/visualization";
+import * as d3 from "d3"
+
 
 interface HeatmapVisualizationProps {
-  data: number[][][]
+  data: number[][]
   numRows: number
   numCols: number
   numFrames: number
-  onCellSelect: (cell: { frame: number, x: number, y: number, value: number} | null) => void
+  minValue: number
+  maxValue: number
+  onCellSelect: (cell: { frame: number, x: number, y: number, value: number } | null) => void
   onFrameChange?: (frame: number) => void
   selectedPoint: { frame: number, index: number, value: number } | null
 }
@@ -25,16 +30,33 @@ export default function Visualization({
   numRows,
   numCols,
   numFrames,
+  minValue,
+  maxValue,
   onCellSelect,
   onFrameChange,
   selectedPoint
 }: HeatmapVisualizationProps) {
-  const { interpolator } = useChartInteraction()
+  
+  const getInterpolator = (colorMap: ColorMap) => {
+    switch (colorMap) {
+      case "inferno": return d3.scaleSequential([minValue, maxValue], d3.interpolateInferno)
+      case "greys": return d3.scaleSequential([minValue, maxValue], d3.interpolateGreys)
+      case "blues": return d3.scaleSequential([minValue, maxValue], d3.interpolateBlues)
+      case "reds": return d3.scaleSequential([minValue, maxValue], d3.interpolateReds)
+      case "greens": return d3.scaleSequential([minValue, maxValue], d3.interpolateGreens)
+      case "rainbow": return d3.scaleSequential([minValue, maxValue], d3.interpolateRainbow)
+      case "viridis":
+      default: return d3.scaleSequential([minValue, maxValue], d3.interpolateViridis)
+    }
+  };
+  const { colorMap } = useChartInteraction()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [currentFrame, setCurrentFrame] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [selectedCell, setSelectedCell] = useState<{ x: number; y: number; value: number } | null>(null)
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number; value: number } | null>(null)
+  const interpolator = useRef<d3.ScaleSequential<string>>(d3.scaleSequential([minValue, maxValue], d3.interpolateViridis))
+
 
   const [showTooltips, setShowTooltips] = useState(true)
   const [showLegend, setShowLegend] = useState(true)
@@ -68,37 +90,45 @@ export default function Visualization({
         canvas,
         offset,
         zoom,
-        data[currentFrame],
+        data,
         numRows,
         numCols,
         selectedCell,
-        interpolator
+        interpolator.current
       )
     }
   })
+
+  useEffect(() => {
+    interpolator.current = getInterpolator(colorMap)
+    requestDraw()
+  }, [colorMap])
+
 
   useEffect(() => {
     if (currentFrame !== prevFrameRef.current) {
       prevFrameRef.current = currentFrame
       onFrameChange?.(currentFrame)
       if (selectedCell) {
-          const value = data[currentFrame]?.[selectedCell.x]?.[selectedCell.y]
-          if (value !== undefined) {
-            setSelectedCell({ x: selectedCell.x, y: selectedCell.y, value: value})
-          }
+        const value = data[selectedCell.x]?.[selectedCell.y]
+        if (value !== undefined) {
+          setSelectedCell({ x: selectedCell.x, y: selectedCell.y, value: value })
         }
+      }
       requestDraw()
     }
   }, [currentFrame])
 
 
   useEffect(() => {
-    if (selectedPoint === null) return
-    console.log("POINT-NOT-FLAT: ", selectedPoint)
-    const idx = selectedPoint.index
-    setCurrentFrame(selectedPoint.frame)
-    setSelectedCell({ x: Math.floor(idx / numRows), y: idx % numRows, value: selectedPoint.value })
-    console.log("CELL-NOT-FLAT: ", { x: Math.floor(idx / numRows), y: idx % numRows, value: selectedPoint.value })
+    if (selectedPoint === null) {
+      setSelectedCell(null)
+    } else {
+      const idx = selectedPoint.index
+      setCurrentFrame(selectedPoint.frame)
+      setSelectedCell({ x: Math.floor(idx / numRows), y: idx % numRows, value: selectedPoint.value })
+    }
+
   }, [selectedPoint])
 
   // Notify parent of cell selection only when selection actually changes
@@ -110,7 +140,7 @@ export default function Visualization({
     if (cellChanged) {
       prevSelectedCellRef.current = selectedCell
       if (selectedCell) {
-        onCellSelect({frame: currentFrame, x: selectedCell.x, y: selectedCell.y, value: selectedCell.value })
+        onCellSelect({ frame: currentFrame, x: selectedCell.x, y: selectedCell.y, value: selectedCell.value })
       } else {
         onCellSelect(null)
       }
@@ -125,10 +155,11 @@ export default function Visualization({
 
 
   function generateColorGradient(min = 0, max = 1, steps = 20) {
+    const scale = getInterpolator(colorMap); 
     const colorStops = Array.from({ length: steps }, (_, i) => {
       const value = min + ((max - min) * i) / (steps - 1)
-      const t = (value - min) / (max - min) // normalize to [0, 1]
-      return `${interpolator(t)} ${t * 100}%` // bottom to top
+      const percentage = (i / (steps - 1)) * 100
+      return `${scale(value)} ${percentage}%` // bottom to top
     })
     return `linear-gradient(to top, ${colorStops.join(', ')})`
   }
@@ -165,7 +196,7 @@ export default function Visualization({
     if (clickPosition) {
       const cell = getCellFromCoordinates(clickPosition.x, clickPosition.y)
       if (cell) {
-        const value = data[currentFrame]?.[cell.x]?.[cell.y]
+        const value = data[cell.x]?.[cell.y]
         if (value !== undefined) {
           setSelectedCell({ ...cell, value })
         }
@@ -179,7 +210,7 @@ export default function Visualization({
     if (hoverPos && showTooltips) {
       const cell = getCellFromCoordinates(hoverPos.x, hoverPos.y)
       if (cell) {
-        const value = data[currentFrame]?.[cell.x]?.[cell.y]
+        const value = data[cell.x]?.[cell.y]
         if (value !== undefined) {
           setHoveredCell({ ...cell, value })
         }
@@ -258,17 +289,17 @@ export default function Visualization({
 
           {showLegend && (
             <div className="absolute top-0 right-0 bg-white border rounded p-2 gap-2 shadow h-full flex flex-col items-center text-xs justify-between">
-              <div>{Math.max(...data[currentFrame].flat().flat())}</div>
+              <div>{maxValue}</div>
               <div
                 className="w-4 h-full rounded"
                 style={{
                   background: generateColorGradient(
-                    Math.min(...data[currentFrame].flat().flat()),
-                    Math.max(...data[currentFrame].flat().flat()),
-                    20
+                    minValue,
+                    maxValue,
+                    100
                   ),
                 }}></div>
-              <div>{Math.min(...data[currentFrame].flat().flat())}</div>
+              <div>{minValue}</div>
             </div>
           )}
         </div>

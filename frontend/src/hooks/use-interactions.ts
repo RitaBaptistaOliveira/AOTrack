@@ -76,6 +76,7 @@ export function useInteractions({
     isDraggingRef.current = true
     if (mode === "select") {
       setClickPosition(coords)
+      console.log("[useInteractions] clickPosition set to:", coords);
     }
     requestDraw()
 

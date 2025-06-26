@@ -1,5 +1,5 @@
 import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dashboard-grid'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useFrameBuffer } from "@/hooks/use-frame-buffer"
 import Visualization from '@/components/charts/heatmap-chart'
@@ -8,15 +8,14 @@ import LineChart from '@/components/charts/line-graph'
 import HistogramChart from '@/components/charts/histogram-chart'
 import StatTable from '@/components/charts/stat-table'
 
+
 export default function Pixels() {
   const frameBuffer = useFrameBuffer(0)
   const [currentFrame, setCurrentFrame] = useState(0)
-  const [selectedCell, setSelectedCell] = useState<{ frame: number, x: number, y: number, value: number } | null>(null)
+  const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number, value: number } | null>(null)
   const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
-  const [lineData, setLineData] = useState<{ x: number; y: number }[]>([])
   const currentFrameData = frameBuffer.getFrame(currentFrame)
   const { scaleType, intervalType } = useChartInteraction()
-  const [intensityOverTime, setIntensityOverTime] = useState<{ x: number; y: number }[]>([]);
 
   const [meta, setMeta] = useState<{
     numFrames: number
@@ -26,64 +25,60 @@ export default function Pixels() {
     overallMax: number
   } | null>(null)
 
-  // function getAverageIntensityData(data: number[][]): { x: number; y: number }[] {
-  //   return data.map((frame, i) => {
-  //     const sum = frame.reduce((acc, val) => acc + val, 0)
-  //     const avg = sum / frame.length
-  //     return { x: i, y: avg }
-  //   })
-  // }
   useEffect(() => {
     if (frameBuffer.meta) {
       setMeta(frameBuffer.meta)
     }
   }, [frameBuffer.meta])
 
+  const handleSelect = useCallback(async (selected: { frame: number, x: number; y: number | undefined; value: number } | null) => {
+    if (selected && meta) {
+      const numRows = meta.numRows
 
-  const handleSelect = useCallback((selected: { frame: number, x: number; y: number | undefined; value: number } | null) => {
-    if (selected && frameBuffer) {
-      if (selected.y) { //If it has a y, it means it comes from the main heatmap, else it came from the flat heatmap
-        // const intensities = frameData.data.map((frame, i) => ({
-        //   x: i,
-        //   y: frame[selected.x][selected.y!]
-        // }));
-        // setIntensityOverTime(intensities);
-
-        // setCurrentFrame(selected.frame)
-        // setSelectedCell({
-        //   frame: selected.frame,
-        //   x: selected.x,
-        //   y: selected.y,
-        //   value: selected.value
-        // })
-        // setSelectedPoint({
-        //   frame: selected.frame,
-        //   index: selected.x * frameData.numRows + selected.y,
-        //   value: selected.value
-        // })
+      if (typeof selected.y === 'number') { //If it has a y, it means it comes from the main heatmap, else it came from the flat heatmap
+        setCurrentFrame(selected.frame)
+        setSelectedCell({
+          frame: selected.frame,
+          col: selected.x,
+          row: selected.y,
+          value: selected.value,
+        })
+        setSelectedPoint({
+          frame: selected.frame,
+          index: selected.x * numRows + selected.y,
+          value: selected.value,
+        })
+        await frameBuffer.fetchPointStatsData(selected.x, selected.y)
+        await frameBuffer.fetchHistogramData({
+          col: selected.x,
+          row: selected.y
+        })
       }
       else {
-        // const intensities = flattenedData.map((frame, i) => ({
-        //   x: i,
-        //   y: frame[selected.x]
-        // }));
-        // setIntensityOverTime(intensities);
+        const col = Math.floor(selected.x / numRows)
+        const row = selected.x % numRows
 
-        // setCurrentFrame(selected.frame)
-        // setSelectedCell({
-        //   frame: selected.frame,
-        //   x: Math.floor(selected.x / frameData.numRows),
-        //   y: selected.x % frameData.numRows,
-        //   value: selected.value
-        // })
-        // setSelectedPoint({
-        //   frame: selected.frame,
-        //   index: selected.x,
-        //   value: selected.value
-        // })
+        setCurrentFrame(selected.frame)
+        setSelectedCell({
+          frame: selected.frame,
+          col: col,
+          row: row,
+          value: selected.value,
+        })
+        setSelectedPoint({
+          frame: selected.frame,
+          index: selected.x,
+          value: selected.value
+        })
+        await frameBuffer.fetchPointStatsData(col, row)
+        await frameBuffer.fetchHistogramData({
+          col: col,
+          row: row
+        })
       }
     } else {
-      setIntensityOverTime([]);
+      setSelectedCell(null)
+      setSelectedPoint(null)
     }
   }, [frameBuffer])
 
@@ -91,25 +86,42 @@ export default function Pixels() {
     setCurrentFrame(frame)
   }, [])
 
+  const handleNumBinsChange = useCallback((bins: number) => {
+    frameBuffer.setNumBins(bins)
+    frameBuffer.fetchGlobalHistogramData()
+    if (selectedCell) {
+      frameBuffer.fetchHistogramData({
+        col: selectedCell.col,
+        row: selectedCell.row
+      })
+    }
+
+
+  }, [])
+
   useEffect(() => {
     frameBuffer.preloadAround(currentFrame, 5)
   }, [currentFrame, scaleType, intervalType])
+  useEffect(() => {
+  }, [frameBuffer.meta]);
 
   return (
     <DashboardGrid variant="default">
 
       <GridItem area="a">
-        {/* {frameBuffer && (
+        {frameBuffer && meta && (
           <Visualization
-            data={currentFrameData ? [currentFrameData] : []}
-            numRows={numRows.current}
-            numCols={numCols.current}
-            numFrames={numFrames.current}
+            data={currentFrameData ? currentFrameData : []}
+            numRows={meta.numRows}
+            numCols={meta.numCols}
+            numFrames={meta.numFrames}
+            minValue={meta.overallMin}
+            maxValue={meta.overallMax}
             onCellSelect={handleSelect}
             onFrameChange={handleFrameChange}
             selectedPoint={selectedPoint}
           />
-        )} */}
+        )}
         <></>
       </GridItem>
       <GridItem area="b">
@@ -124,9 +136,36 @@ export default function Pixels() {
           />}
 
       </GridItem>
-      <GridItem area="c"><LineChart data={lineData} selectedPoint={intensityOverTime} /></GridItem>
-      <GridItem area="d"><HistogramChart data={lineData} selectedPoint={intensityOverTime} /></GridItem>
-      <GridItem area="e"><StatTable data={lineData} /></GridItem>
+      <GridItem area="c">
+        {frameBuffer.charts &&
+          <LineChart data={frameBuffer.charts.frameMeans} selectedPoint={frameBuffer.pointStatsData?.point_means} />
+        }
+      </GridItem>
+      <GridItem area="d">
+        {frameBuffer.globalHistogramData && meta && (
+          <HistogramChart
+            bins={frameBuffer.globalHistogramData.bins}
+            counts={frameBuffer.globalHistogramData.counts}
+            numBins={frameBuffer.numBins}
+            domain={[meta.overallMin, meta.overallMax]}
+            selectedPoint={
+              frameBuffer.histogramData
+                ? {
+                  bins: frameBuffer.histogramData.bins,
+                  counts: frameBuffer.histogramData.counts
+                }
+                : undefined
+            }
+            onChangeNumBins={handleNumBinsChange}
+          />
+        )}
+      </GridItem>
+      <GridItem area="e">
+        {frameBuffer.charts &&
+          <StatTable data={frameBuffer.charts.stats} selectedPoint={frameBuffer.pointStatsData?.stats}/>
+        }
+      </GridItem>
+
     </DashboardGrid>
   )
 }

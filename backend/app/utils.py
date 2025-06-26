@@ -41,3 +41,16 @@ def get_interval(interval_type):
         case _:
             print(f'Invalid interval: {interval_type}')
             raise HTTPException(status_code=400, detail=f'Invalid interval: {interval_type}')
+        
+def process_frame(scale_type, interval_type, frame_data):
+    interval = get_interval(interval_type)
+    vmin, vmax = interval.get_limits(frame_data)
+    clipped = np.clip(frame_data, vmin, vmax)
+    
+    # normalized = interval(frame_data)
+    
+    scale_func = get_scale(scale_type)
+    scaled = scale_func(clipped)
+    # scaled = scale_func(normalized)
+    
+    return scaled, vmin, vmax

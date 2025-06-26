@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import * as d3 from "d3"
 import { createPortal } from "react-dom"
-
-interface DataPoint {
-  x: number
-  y: number
-}
+import type { DataPoint } from "@/types/visualization"
 
 interface LineChartProps {
   data: DataPoint[]
@@ -40,6 +36,7 @@ export default function LineChart({ data, selectedPoint }: LineChartProps) {
   }, [])
 
   useEffect(() => {
+    console.log("LINE DRAW")
     if (!svgRef.current || !data.length || size.width === 0 || size.height === 0) return
 
     const margin = { top: 20, right: 20, bottom: 20, left: 40 }
