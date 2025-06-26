@@ -20,6 +20,11 @@ async def get_slope_frame(request: Request):
     frame_index = int(form.get("frame_index", 0))
     interval_type = form.get("interval_type", "minmax")
     scale_type = form.get("scale_type", "linear")
+    
+    print(wfs_index)
+    print(frame_index)
+    print(interval_type)
+    print(scale_type)
 
     try:
         system = aotpy.AOSystem.read_from_file(session.file_path)
@@ -31,26 +36,22 @@ async def get_slope_frame(request: Request):
         sensor = system.wavefront_sensors[wfs_index]
         measurements = sensor.measurements.data
         subaperture_mask = sensor.subaperture_mask.data
-        
         num_frames = measurements.shape[0]
-        
         if not (0 <= frame_index < num_frames):
             raise HTTPException(status_code=400, detail=f"frame_index {frame_index} out of range")
         
-        frame_measurements_x = measurements[frame_index, 0, :]  # X dimension (flat)
-        frame_measurements_y = measurements[frame_index, 1, :]  # Y dimension (flat)
-        
-        output_x = np.full(subaperture_mask.shape, np.nan)
+        measurements_x = measurements[frame_index, 0, :]  # X dimension (flat)
+        measurements_y = measurements[frame_index, 1, :]  # Y dimension (flat)
         row_indices, col_indices = np.where(subaperture_mask != -1)
         measurement_indices = subaperture_mask[row_indices, col_indices]
-        output_x[row_indices, col_indices] = frame_measurements_x[measurement_indices]
-        
-        output_y = np.full(subaperture_mask.shape, np.nan)
-        output_y[row_indices, col_indices] = frame_measurements_y[measurement_indices]
-        
-        processed_x, _, _ = process_frame(scale_type, interval_type, output_x)
-        processed_y, _, _ = process_frame(scale_type, interval_type, output_y)
-        
+        outputX = np.full(subaperture_mask.shape, np.nan)
+        outputX[row_indices, col_indices] = measurements_x[measurement_indices]
+        outputY = np.full(subaperture_mask.shape, np.nan)
+        outputY[row_indices, col_indices] = measurements_y[measurement_indices]
+        processed_x, _, _ = process_frame(scale_type, interval_type, outputX)
+        processed_y, _, _ = process_frame(scale_type, interval_type, outputY)
+        outputX = np.where(np.isnan(processed_x), None, processed_x)
+        outputY = np.where(np.isnan(processed_y), None, processed_y)
         del system
         gc.collect()
     except Exception as e:
@@ -58,9 +59,9 @@ async def get_slope_frame(request: Request):
         raise HTTPException(status_code=500, detail="Failed to load frame")
     
     return JSONResponse({
-        "x_frame": processed_x.tolist(),
-        "y_frame": processed_y.tolist()
-        })
+        "x_frame": outputX.tolist(),
+        "y_frame": outputY.tolist()
+    })
 
 @router.post("/slope/flat-tile")
 async def get_flat_tile_post(request: Request):
@@ -132,23 +133,37 @@ async def get_slope_meta(request: Request):
     try:
         system = aotpy.AOSystem.read_from_file(session.file_path)
         wfs_list = system.wavefront_sensors
+        sensor = wfs_list[wfs_index]
         if not (0 <= wfs_index < len(wfs_list)):
             raise HTTPException(status_code=400, detail=f"wfs_index {wfs_index} out of range")
 
-        measurements = wfs_list[wfs_index].measurements.data
+        measurements = sensor.measurements.data
         num_frames, _, num_indices = measurements.shape
         overall_min = float(np.min(measurements))
         overall_max = float(np.max(measurements))
+        num_rows = None
+        num_cols = None
+        print("subaperture_mask: ", hasattr(sensor, "subaperture_mask"))
+        if hasattr(sensor, "subaperture_mask") and sensor.subaperture_mask is not None:
+            mask_shape = sensor.subaperture_mask.data.shape
+            if len(mask_shape) == 2:
+                num_cols, num_rows = mask_shape
         
         del system
         gc.collect()
-
-        return JSONResponse({
+        
+        response = {
             "num_frames": num_frames,
             "num_indices": num_indices,
             "overall_min": overall_min,
             "overall_max": overall_max
-        })
+        }
+        
+        if num_rows is not None and num_cols is not None:
+            response["num_rows"] = num_rows
+            response["num_cols"] = num_cols
+
+        return JSONResponse(response)
 
     except Exception as e:
         print(f"Meta error: {e}")
@@ -179,14 +194,13 @@ async def get_default_values(request: Request):
         frame_means_y = [{"x": int(i), "y": float(v)} for i, v in enumerate(mean_y)]
         
         return JSONResponse({
-            "frame_means_x": frame_means_x,
-            "frame_means_y": frame_means_y,
-            "min": float(np.min(measurements)),
-            "max": float(np.max(measurements)),
-            "mean": float(np.mean(measurements)),
-            "median": float(np.median(measurements)),
-            "std": float(np.std(measurements)),
-            "variance": float(np.var(measurements)),
+            "frame_means": [frame_means_x, frame_means_y],
+            "min": [float(np.min(x)), float(np.min(y))],
+            "max": [float(np.max(x)), float(np.max(y))],
+            "mean": [float(np.mean(x)), float(np.mean(y))],
+            "median": [float(np.median(x)), float(np.median(y))],
+            "std": [float(np.std(x)), float(np.std(y))],
+            "variance": [float(np.var(x)), float(np.var(y))],
         })
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Histogram error: {e}")
@@ -203,7 +217,6 @@ async def get_slope_point_stats(request: Request):
     try:
         wfs_index = int(form.get("wfs_index", 0))
         index = int(form.get("index"))
-        dimension = int(form.get("dimension", 0))
 
         system = aotpy.AOSystem.read_from_file(session.file_path)
         measurements = system.wavefront_sensors[wfs_index].measurements.data
@@ -211,22 +224,23 @@ async def get_slope_point_stats(request: Request):
         del system
         gc.collect()
 
-        # Extract intensity time series for this (col, row)
-        intensities = measurements[:, dimension, index]
-
+        intensitiesX = measurements[:, 0, index]
+        intensitiesY = measurements[:, 1, index]
+        
         stats = {
-            "min": float(np.min(intensities)),
-            "max": float(np.max(intensities)),
-            "mean": float(np.mean(intensities)),
-            "median": float(np.median(intensities)),
-            "std": float(np.std(intensities)),
-            "variance": float(np.var(intensities)),
+            "min": [float(np.min(intensitiesX)),float(np.min(intensitiesY))],
+            "max": [float(np.max(intensitiesX)), float(np.max(intensitiesY))],
+            "mean": [float(np.mean(intensitiesX)), float(np.mean(intensitiesY))],
+            "median": [float(np.median(intensitiesX)), float(np.median(intensitiesY))],
+            "std": [float(np.std(intensitiesX)), float(np.std(intensitiesY))],
+            "variance": [float(np.var(intensitiesX)), float(np.var(intensitiesY))],
         }
 
-        line_data = [{"x": int(i), "y": float(v)} for i, v in enumerate(intensities)]
+        line_dataX = [{"x": int(i), "y": float(v)} for i, v in enumerate(intensitiesX)]
+        line_dataY = [{"x": int(i), "y": float(v)} for i, v in enumerate(intensitiesY)]
 
         return JSONResponse({
-            "point_means": line_data,
+            "point_means": [line_dataX, line_dataY],
             "stats": stats
         })
 
@@ -246,36 +260,38 @@ async def get_slope_histogram(request: Request):
     num_bins = int(form.get("num_bins", 30))
 
     index = int(form.get("index"))
-    dimension = int(form.get("dimension", 0))
-    point_selected = index is not None and dimension is not None
+    point_selected = index is not None
 
     try:
         system = aotpy.AOSystem.read_from_file(session.file_path)
         measurements = system.wavefront_sensors[wfs_index].measurements.data
         x = measurements[:, 0, :].flatten()
         y = measurements[:, 1, :].flatten()
-        
+        min = np.min(measurements)
+        max = np.max(measurements)
         del system
         gc.collect()
 
         if point_selected:
-            values = measurements[:, dimension, index]
-            counts_p, bins_p = np.histogram(values, bins=num_bins, range=[np.min(measurements), np.max(measurements)])
+            valuesX = measurements[:, 0, index]
+            valuesY = measurements[:, 1, index]
+            counts_pX, bins_pX = np.histogram(valuesX, bins=num_bins, range=[min, max])
+            counts_pY, bins_pY = np.histogram(valuesY, bins=num_bins, range=[min, max])
         else:
-            counts_p = np.ndarray([])
-            bins_p = np.ndarray([])
+            counts_pX = np.ndarray([])
+            counts_pY = np.ndarray([])
+            bins_pX = np.ndarray([])
+            bins_pY = np.ndarray([])
             
-        counts_x, bins_x = np.histogram(x, bins=num_bins, range=[np.min(measurements), np.max(measurements)])
-        counts_y, bins_y = np.histogram(y, bins=num_bins, range=[np.min(measurements), np.max(measurements)])
+        counts_x, bins_x = np.histogram(x, bins=num_bins, range=[min, max])
+        counts_y, bins_y = np.histogram(y, bins=num_bins, range=[min, max])
 
         
         return JSONResponse({
-            "counts_x": counts_x.tolist(),
-            "bins_x": bins_x.tolist(),
-            "counts_y": counts_y.tolist(),
-            "bins_y": bins_y.tolist(),
-            "counts1" : counts_p.tolist(),
-            "bins1" : bins_p.tolist(),
+            "counts": [counts_x.tolist(),counts_y.tolist()],
+            "bins": [bins_x.tolist(),bins_y.tolist()],
+            "counts1" : [counts_pX.tolist(), counts_pY.tolist()],
+            "bins1" : [bins_pX.tolist(), bins_pY.tolist()]
         })
 
     except Exception as e:

@@ -31,10 +31,13 @@ export function drawHeatmap(
     for (let row = 0; row < numRows; row++) {
         for (let col = 0; col < numCols; col++) {
             const value = data[row]?.[col]
-            if (value !== undefined) {
-                ctx.fillStyle = interpolator(value)
-                ctx.fillRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight)
+            if (value === null || value === undefined) {
+                // Don't draw or draw transparent
+                continue;
             }
+            ctx.fillStyle = interpolator(value)
+            ctx.fillRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight)
+
         }
     }
     if (selectedCell) {
@@ -56,7 +59,7 @@ export function drawFlatHeatmapFromBuffer(
     cellSize: number = 6,
     numFrames: number,
     numIndexes: number,
-    selected?: { frame: number; index: number; value: number }
+    selected?: { frame: number; index: number } | null
 ) {
     const canvas = ctx.canvas;
     ctx.clearRect(0, 0, canvas.width, canvas.height);

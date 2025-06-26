@@ -5,14 +5,13 @@ export async function fetchDefaultSlopeCharts({
 }: {
   wfsIndex: number
 }): Promise<{
-  frame_means_x: DataPoint[]
-  frame_means_y: DataPoint[]
-  min: number
-  max: number
-  mean: number
-  median: number
-  std: number
-  variance: number
+  frame_means: [DataPoint[], DataPoint[]]
+  min: [number, number]
+  max: [number, number]
+  mean: [number, number]
+  median: [number, number]
+  std: [number, number]
+  variance: [number, number]
 }> {
   const formData = new FormData()
   formData.append("wfs_index", wfsIndex.toString())

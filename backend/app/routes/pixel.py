@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 import numpy as np
 from ..session.actions import get_session_from_cookie
-from ..utils import get_interval, get_scale, process_frame
+from ..utils import process_frame
 import aotpy
 import gc
 

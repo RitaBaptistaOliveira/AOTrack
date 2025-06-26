@@ -10,30 +10,31 @@ type FrameMeta = {
   numIndices: number
   overallMin: number
   overallMax: number
+  numRows?: number
+  numCols?: number
 }
 
 type DefaultCharts = {
-  frameMeansX: DataPoint[]
-  frameMeansY: DataPoint[]
+  frameMeans: [DataPoint[], DataPoint[]],
   stats: {
-    min: number
-    max: number
-    mean: number
-    median: number
-    std: number
-    variance: number
+    min: [number, number]
+    max: [number, number]
+    mean: [number, number]
+    median: [number, number]
+    std: [number, number]
+    variance: [number, number]
   }
 }
 
 type PointStats = {
-  point_means: DataPoint[]
+  point_means: [DataPoint[], DataPoint[]]
   stats: {
-    min: number
-    max: number
-    mean: number
-    median: number
-    std: number
-    variance: number
+    min: [number, number]
+    max: [number, number]
+    mean: [number, number]
+    median: [number, number]
+    std: [number, number]
+    variance: [number, number]
   }
 }
 
@@ -78,9 +79,9 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
     })
   }
 
-  const preloadAround = (center: number, radius = 5) => {
+  const preloadAround = (center: number, radius = 5, numFrames: number) => {
     const min = Math.max(0, center - radius)
-    const max = center + radius
+    const max =  Math.min(center + radius, numFrames - 1)
     setLoading(true)
 
     const toFetch = []
@@ -115,6 +116,8 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
         numIndices: data.num_indices,
         overallMin: data.overall_min,
         overallMax: data.overall_max,
+        numCols: data.num_cols ?? undefined,
+        numRows: data.num_rows ?? undefined,
       })
     }
     fetchMeta()
@@ -126,7 +129,7 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
     try {
       const res = await fetchSlopeHistogram({
         wfsIndex,
-        numBins,
+        numBins
       })
       setGlobalHistogramData(res)
     } catch (err) {
@@ -137,15 +140,14 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
   }, [wfsIndex, numBins])
 
   const fetchHistogramData = useCallback(
-    async (index: number, dimension: number) => {
+    async (index: number) => {
       setHistogramLoading(true)
       setHistogramError(null)
       try {
         const res = await fetchSlopeHistogram({
           wfsIndex,
           numBins,
-          index,
-          dimension,
+          index
         })
         setHistogramData({
           counts: res.counts_point,
@@ -168,8 +170,7 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
         })
 
         setCharts({
-          frameMeansX: result.frame_means_x,
-          frameMeansY: result.frame_means_y,
+          frameMeans: result.frame_means,
           stats: {
             min: result.min,
             max: result.max,
@@ -184,19 +185,18 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
       }
     }
 
-    fetchCharts()
-    fetchGlobalHistogramData()
-  }, [wfsIndex, intervalType, scaleType])
+    // fetchCharts()
+    // fetchGlobalHistogramData()
+  }, [wfsIndex])
 
   const fetchPointStatsData = useCallback(
-    async (index: number, dimension: number) => {
+    async (index: number) => {
       setPointStatsLoading(true)
       setPointStatsError(null)
       try {
         const res = await fetchSlopePointStats({
           wfsIndex,
-          index,
-          dimension,
+          index
         })
         setPointStatsData(res)
       } catch (err) {
@@ -205,7 +205,7 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
         setPointStatsLoading(false)
       }
     },
-    [wfsIndex, numBins]
+    [wfsIndex]
   )
 
   return {

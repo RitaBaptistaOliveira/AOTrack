@@ -1,28 +1,23 @@
 export async function fetchSlopeHistogram({
   wfsIndex,
   numBins,
-  index,
-  dimension,
+  index
 }: {
   wfsIndex: number
   numBins: number
   index?: number
-  dimension?: number
 }): Promise<{
-  counts_x: number[]
-  bins_x: number[]
-  counts_y: number[]
-  bins_y: number[]
-  counts_point: number[]
-  bins_point: number[]
+  counts: [number[], number[]]
+  bins: [number[], number[]]
+  counts_point: [number[], number[]]
+  bins_point: [number[], number[]]
 }> {
   const formData = new FormData()
   formData.append("wfs_index", wfsIndex.toString())
   formData.append("num_bins", numBins.toString())
 
-  if (index !== undefined && dimension !== undefined) {
+  if (index !== undefined) {
     formData.append("index", index.toString())
-    formData.append("dimension", dimension.toString())
   }
 
   const res = await fetch("http://localhost:8000/slope/get-histogram", {
