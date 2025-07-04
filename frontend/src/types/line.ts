@@ -14,3 +14,25 @@ export interface D3LineChartProps {
   config1?: LineConfig
   config2?: LineConfig
 }
+
+export interface ChartStatistics {
+  min: number
+  max: number
+  avg: number
+  count: number
+}
+
+export interface ChartDataset {
+  data: DataPoint[]
+  config?: LineConfig
+  key: string
+  color: string
+  name: string
+}
+
+export interface ChartTooltipData {
+  x: number
+  y: number
+  color: string
+  line: string
+}

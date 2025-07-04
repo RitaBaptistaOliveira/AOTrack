@@ -6,7 +6,8 @@ import Visualization from '@/components/charts/heatmap-chart'
 import FlapHeatmap from '@/components/charts/heatmap-flat-chart'
 // import LineChart from '@/components/charts/line-graph'
 import D3LineChart from '@/components/charts/line-chart'
-import HistogramChart from '@/components/charts/histogram-chart'
+import Histogram from '@/components/charts/hist-chart'
+// import HistogramChart from '@/components/charts/histogram-chart'
 import StatTable from '@/components/charts/stat-table'
 
 
@@ -87,19 +88,6 @@ export default function Pixels() {
     setCurrentFrame(frame)
   }, [])
 
-  const handleNumBinsChange = useCallback((bins: number) => {
-    frameBuffer.setNumBins(bins)
-    frameBuffer.fetchGlobalHistogramData()
-    if (selectedCell) {
-      frameBuffer.fetchHistogramData({
-        col: selectedCell.col,
-        row: selectedCell.row
-      })
-    }
-
-
-  }, [])
-
   useEffect(() => {
     frameBuffer.preloadAround(currentFrame, 5)
   }, [currentFrame, scaleType, intervalType])
@@ -139,30 +127,21 @@ export default function Pixels() {
       </GridItem>
       <GridItem area="c">
         {frameBuffer.charts &&
-           <D3LineChart
-              data1={frameBuffer.pointStatsData?.point_means || []}
-              data2={[]}
-              config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
-              config2={undefined}
-            />
+          <D3LineChart
+            data1={frameBuffer.pointStatsData?.point_means || []}
+            data2={[]}
+            config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
+            config2={undefined}
+          />
         }
       </GridItem>
       <GridItem area="d">
         {frameBuffer.globalHistogramData && meta && (
-          <HistogramChart
-            bins={frameBuffer.globalHistogramData.bins}
-            counts={frameBuffer.globalHistogramData.counts}
-            numBins={frameBuffer.numBins}
-            domain={[meta.overallMin, meta.overallMax]}
-            selectedPoint={
-              frameBuffer.histogramData
-                ? {
-                  bins: frameBuffer.histogramData.bins,
-                  counts: frameBuffer.histogramData.counts
-                }
-                : undefined
-            }
-            onChangeNumBins={handleNumBinsChange}
+          <Histogram
+            data1={frameBuffer.pointStatsData?.point_means || []}
+            data2={[]}
+            config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
+            config2={undefined}
           />
         )}
       </GridItem>

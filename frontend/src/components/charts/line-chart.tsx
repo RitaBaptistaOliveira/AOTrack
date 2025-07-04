@@ -138,8 +138,8 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
             const yDomain: [number, number] = [yExtent[0] === 0 ? 0 : yExtent[0] - yPadding, yExtent[1] + yPadding]
 
             //Set up SVG element
-            const svgElement = svgRef.current;
-            if (!svgElement) return;
+            const svgElement = svgRef.current
+            if (!svgElement) return
             const svg = d3.select(svgElement)
             svg.selectAll("*").remove()
             svg.attr("width", width).attr("height", height)
@@ -325,6 +325,7 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
                 .style("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.1)")
                 .style("opacity", 0)
                 .style("visibility", "hidden")
+                .style("top", "0px")
 
             // Create overlay for hover detection
             const overlay = g
