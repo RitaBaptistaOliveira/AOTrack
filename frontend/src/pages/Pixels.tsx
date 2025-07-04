@@ -4,7 +4,8 @@ import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useFrameBuffer } from "@/hooks/use-frame-buffer"
 import Visualization from '@/components/charts/heatmap-chart'
 import FlapHeatmap from '@/components/charts/heatmap-flat-chart'
-import LineChart from '@/components/charts/line-graph'
+// import LineChart from '@/components/charts/line-graph'
+import D3LineChart from '@/components/charts/line-chart'
 import HistogramChart from '@/components/charts/histogram-chart'
 import StatTable from '@/components/charts/stat-table'
 
@@ -138,7 +139,12 @@ export default function Pixels() {
       </GridItem>
       <GridItem area="c">
         {frameBuffer.charts &&
-          <LineChart data={frameBuffer.charts.frameMeans} selectedPoint={frameBuffer.pointStatsData?.point_means} />
+           <D3LineChart
+              data1={frameBuffer.pointStatsData?.point_means || []}
+              data2={[]}
+              config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
+              config2={undefined}
+            />
         }
       </GridItem>
       <GridItem area="d">
@@ -162,7 +168,7 @@ export default function Pixels() {
       </GridItem>
       <GridItem area="e">
         {frameBuffer.charts &&
-          <StatTable data={frameBuffer.charts.stats} selectedPoint={frameBuffer.pointStatsData?.stats}/>
+          <StatTable data={frameBuffer.charts.stats} selectedPoint={frameBuffer.pointStatsData?.stats} />
         }
       </GridItem>
 

@@ -64,135 +64,148 @@ export default function LineChart({ data, selectedPoint }: LineChartProps) {
 
     const yMax = d3.max(allY.flat())!
 
-    const xScale = d3.scaleLinear().domain([minX, maxX]).range([1, width])
+    const xScale = d3.scaleLinear().domain([minX + 1, maxX + 1]).range([0, width])
     const yScale = d3.scaleLinear().domain([0, yMax]).range([height, 0])
     xScaleRef.current = xScale
     yScaleRef.current = yScale
     const xAxis = svg.append("g").attr("transform", `translate(${margin.left},${height + margin.top})`).attr("class", "x-axis").call(d3.axisBottom(xScale))
     const yAxis = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`).attr("class", "y-axis").call(d3.axisLeft(yScale))
+    svg.append("text")
+      .attr("text-anchor", "middle")
+      .attr("x", margin.left + width / 2)
+      .attr("y", height + margin.top + 35)
+      .text("Frames")
+      .style("font-size", "16px");
 
+    svg.append("text")
+      .attr("text-anchor", "middle")
+      .attr("transform", `rotate(-90)`)
+      .attr("x", -(margin.top + height / 2))
+      .attr("y", margin.left - 30)
+      .text("Intensity (AUD)")
+      .style("font-size", "16px");
 
     const line = d3.line<DataPoint>()
       .x((d) => xScale(d.x))
       .y((d) => yScale(d.y))
 
-    chartContent.append("path")
-      .datum(data)
-      .attr("class", `main-line`)
-      .attr("fill", "none")
-      .attr("stroke", "steelblue")
-      .attr("stroke-width", 2)
-      .attr("d", line)
-      .on("mousemove", function (event) {
-        const [mx] = d3.pointer(event)
-        if (!xScaleRef.current) return;
-        const zx = xScaleRef.current.invert(mx)
+    // chartContent.append("path")
+    //   .datum(data)
+    //   .attr("class", `main-line`)
+    //   .attr("fill", "none")
+    //   .attr("stroke", "steelblue")
+    //   .attr("stroke-width", 2)
+    //   .attr("d", line)
+    //   .on("mousemove", function (event) {
+    //     const [mx] = d3.pointer(event)
+    //     if (!xScaleRef.current) return;
+    //     const zx = xScaleRef.current.invert(mx)
 
-        const closest = data.reduce((a, b) =>
-          Math.abs(a.x - zx) < Math.abs(b.x - zx) ? a : b
-        )
-        setHoverInfo({
-          value: closest,
-          x: event.clientX,
-          y: event.clientY,
-        })
-      })
-      .on("mouseleave", () => setHoverInfo(null))
+    //     const closest = data.reduce((a, b) =>
+    //       Math.abs(a.x - zx) < Math.abs(b.x - zx) ? a : b
+    //     )
+    //     setHoverInfo({
+    //       value: closest,
+    //       x: event.clientX,
+    //       y: event.clientY,
+    //     })
+    //   })
+    //   .on("mouseleave", () => setHoverInfo(null))
 
-    const min = d3.min(data, d => d.y)!
-    const max = d3.max(data, d => d.y)!
-    const mean = d3.mean(data, d => d.y)!
+    // const min = d3.min(data, d => d.y)!
+    // const max = d3.max(data, d => d.y)!
+    // const mean = d3.mean(data, d => d.y)!
 
-    chartContent.append("line")
-      .datum(min)
-      .attr("class", `stat-line`)
-      .attr("x1", 0)
-      .attr("x2", width)
-      .attr("y1", yScale(min))
-      .attr("y2", yScale(min))
-      .attr("stroke", "steelblue")
-      .attr("stroke-dasharray", "4 2")
-      .on("mousemove", function (event) {
-        const [mx] = d3.pointer(event)
-        if (!xScaleRef.current) return;
-        const frame = Math.round(xScaleRef.current.invert(mx))
+    // chartContent.append("line")
+    //   .datum(min)
+    //   .attr("class", `stat-line`)
+    //   .attr("x1", 0)
+    //   .attr("x2", width)
+    //   .attr("y1", yScale(min))
+    //   .attr("y2", yScale(min))
+    //   .attr("stroke", "steelblue")
+    //   .attr("stroke-dasharray", "4 2")
+    //   .on("mousemove", function (event) {
+    //     const [mx] = d3.pointer(event)
+    //     if (!xScaleRef.current) return;
+    //     const frame = Math.round(xScaleRef.current.invert(mx))
 
-        if (frame < 0 || frame >= data.length) return
+    //     if (frame < 0 || frame >= data.length) return
 
-        const closest = {
-          x: frame,
-          y: min,
-        }
-        setHoverInfo({
-          value: closest,
-          x: event.clientX,
-          y: event.clientY,
-        })
-      })
-      .on("mouseleave", () => setHoverInfo(null))
+    //     const closest = {
+    //       x: frame,
+    //       y: min,
+    //     }
+    //     setHoverInfo({
+    //       value: closest,
+    //       x: event.clientX,
+    //       y: event.clientY,
+    //     })
+    //   })
+    //   .on("mouseleave", () => setHoverInfo(null))
 
-    chartContent.append("line")
-      .datum(max)
-      .attr("class", `stat-line`)
-      .attr("x1", 0)
-      .attr("x2", width)
-      .attr("y1", yScale(max))
-      .attr("y2", yScale(max))
-      .attr("stroke", "steelblue")
-      .attr("stroke-dasharray", "4 2")
-      .on("mousemove", function (event) {
-        const [mx] = d3.pointer(event)
-        if (!xScaleRef.current) return;
-        const frame = Math.round(xScaleRef.current.invert(mx))
+    // chartContent.append("line")
+    //   .datum(max)
+    //   .attr("class", `stat-line`)
+    //   .attr("x1", 0)
+    //   .attr("x2", width)
+    //   .attr("y1", yScale(max))
+    //   .attr("y2", yScale(max))
+    //   .attr("stroke", "steelblue")
+    //   .attr("stroke-dasharray", "4 2")
+    //   .on("mousemove", function (event) {
+    //     const [mx] = d3.pointer(event)
+    //     if (!xScaleRef.current) return;
+    //     const frame = Math.round(xScaleRef.current.invert(mx))
 
-        if (frame < 0 || frame >= data.length) return
+    //     if (frame < 0 || frame >= data.length) return
 
-        const closest = {
-          x: frame,
-          y: max,
-        }
-        setHoverInfo({
-          value: closest,
-          x: event.clientX,
-          y: event.clientY,
-        })
-      })
-      .on("mouseleave", () => setHoverInfo(null))
+    //     const closest = {
+    //       x: frame,
+    //       y: max,
+    //     }
+    //     setHoverInfo({
+    //       value: closest,
+    //       x: event.clientX,
+    //       y: event.clientY,
+    //     })
+    //   })
+    //   .on("mouseleave", () => setHoverInfo(null))
 
-    chartContent.append("line")
-      .datum(mean)
-      .attr("class", `stat-line`)
-      .attr("x1", 0)
-      .attr("x2", width)
-      .attr("y1", yScale(mean))
-      .attr("y2", yScale(mean))
-      .attr("stroke", "steelblue")
-      .attr("stroke-dasharray", "4 2")
-      .on("mousemove", function (event) {
-        const [mx] = d3.pointer(event)
-        if (!xScaleRef.current) return;
-        const frame = Math.round(xScaleRef.current.invert(mx))
+    // chartContent.append("line")
+    //   .datum(mean)
+    //   .attr("class", `stat-line`)
+    //   .attr("x1", 0)
+    //   .attr("x2", width)
+    //   .attr("y1", yScale(mean))
+    //   .attr("y2", yScale(mean))
+    //   .attr("stroke", "steelblue")
+    //   .attr("stroke-dasharray", "4 2")
+    //   .on("mousemove", function (event) {
+    //     const [mx] = d3.pointer(event)
+    //     if (!xScaleRef.current) return;
+    //     const frame = Math.round(xScaleRef.current.invert(mx))
 
-        if (frame < 0 || frame >= data.length) return
+    //     if (frame < 0 || frame >= data.length) return
 
-        const closest = {
-          x: frame,
-          y: mean,
-        }
-        setHoverInfo({
-          value: closest,
-          x: event.clientX,
-          y: event.clientY,
-        })
-      })
-      .on("mouseleave", () => setHoverInfo(null))
+    //     const closest = {
+    //       x: frame,
+    //       y: mean,
+    //     }
+    //     setHoverInfo({
+    //       value: closest,
+    //       x: event.clientX,
+    //       y: event.clientY,
+    //     })
+    //   })
+    //   .on("mouseleave", () => setHoverInfo(null))
 
     if (selectedPoint?.length) {
       chartContent.append("path")
         .datum(selectedPoint)
         .attr("class", `main-line`)
         .attr("fill", "none")
-        .attr("stroke", "green")
+        .attr("stroke", "red")
         .attr("stroke-width", 2)
         .attr("d", line)
         .on("mousemove", function (event) {
@@ -204,7 +217,7 @@ export default function LineChart({ data, selectedPoint }: LineChartProps) {
             Math.abs(a.x - zx) < Math.abs(b.x - zx) ? a : b
           )
           setHoverInfo({
-            value: closest,
+            value: { x: closest.x + 1, y: closest },
             x: event.clientX,
             y: event.clientY,
           })
@@ -307,15 +320,12 @@ export default function LineChart({ data, selectedPoint }: LineChartProps) {
       .on("zoom", (event) => {
         const transform = event.transform
         const zx = transform.rescaleX(xScale)
-        const zy = transform.rescaleY(yScale)
+        const zy = yScale
         xScaleRef.current = zx
-        yScaleRef.current = zy
 
         chartContent.selectAll("line")
           .attr("x1", zx(minX))
           .attr("x2", zx(maxX))
-          .attr("y1", d => zy(d))
-          .attr("y2", d => zy(d))
 
         xAxis.call(d3.axisBottom(zx))
         yAxis.call(d3.axisLeft(zy))
@@ -334,24 +344,34 @@ export default function LineChart({ data, selectedPoint }: LineChartProps) {
   }, [data, size, selectedPoint])
 
   return (
-    <div ref={containerRef} className="relative h-full w-full flex">
-      <svg ref={svgRef} width={size.width} height={size.height} />
-      {hoverInfo && createPortal(
-        <div className="overflow-visible" style={{
-          position: 'absolute',
-          left: hoverInfo.x,
-          top: hoverInfo.y - 20,
-          pointerEvents: 'none',
-          background: 'rgba(30,30,40,0.95)',
-          color: 'white',
-          borderRadius: 8,
-          padding: '0.5em 1em',
-          fontSize: 13,
-          zIndex: 100
-        }}>
-          <>Frame: {hoverInfo.value.x.toFixed(2)} <br /> Value: {hoverInfo.value.y.toFixed(2)} </>
-        </div>
-        , document.body)}
+    <div className="flex flex-col h-full">
+      <div className="flex justify-between flex-shrink-0">
+        <h2 className="text-sm font-semibold">Line Chart of Intensity by Frames</h2>
+      </div>
+      <div ref={containerRef} className="relative flex w-full h-95">
+        <svg ref={svgRef} width={size.width} height={size.height} />
+        {hoverInfo && createPortal(
+          <div className="overflow-visible" style={{
+            position: 'absolute',
+            left: hoverInfo.x,
+            top: hoverInfo.y - 20,
+            pointerEvents: 'none',
+            background: 'rgba(30,30,40,0.95)',
+            color: 'white',
+            borderRadius: 8,
+            padding: '0.5em 1em',
+            fontSize: 13,
+            zIndex: 100
+          }}>
+            <>Frame: {hoverInfo.value.x.toFixed(2)} <br /> Value:  </>
+          </div>
+          , document.body)}
+      </div>
+      <div className="relative flex items-center space-x-2 text-xs">
+        <div className="w-6 h-1 bg-red-500"></div>
+        <span>Cell (19, 11)</span>
+      </div>
     </div>
+
   )
 }

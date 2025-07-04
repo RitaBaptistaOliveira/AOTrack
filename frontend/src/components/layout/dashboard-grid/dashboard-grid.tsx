@@ -22,7 +22,7 @@ interface GridItemProps {
 
 export function GridItem({ area, children, className = '' }: GridItemProps) {
   return (
-    <div style={{ gridArea: area }} className={`overflow-auto bg-card rounded-xl px-4 py-2 ${className}`}>
+    <div style={{ gridArea: area }} className={`overflow-auto bg-card rounded-lg px-2 py-2 ${className}`}>
       {children}
     </div>
   )
