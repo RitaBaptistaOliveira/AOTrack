@@ -4,9 +4,10 @@ import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import * as d3 from "d3"
 import type { D3LineChartProps } from "@/types/line"
-import { Eye, EyeOff, TrendingUp, BarChart3 } from "lucide-react"
+import { TrendingUp, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip"
+import { Input } from "../ui/input"
 
 const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1, config2 }) => {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -16,9 +17,10 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
   const [showKDE, setShowKDE] = useState({ line1: false, line2: false })
   const [showStats, setShowStats] = useState({ line1: false, line2: false })
   const [binCount, setBinCount] = useState(30)
+  const [binsRange, setBinsRange] = useState([5, 100])
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity)
 
-  const margin = { top: 20, right: 30, bottom: 60, left: 80 }
+  const margin = { top: 5, right: 10, bottom: 40, left: 40 }
   const colors = ["#3b82f6", "#ef4444"]
 
   const datasets = [
@@ -77,6 +79,22 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
 
     return { mean, median, mode }
   }
+
+  useEffect(() => {
+    const lengths = [data1.length, data2.length].filter(len => len > 0)
+
+    if (lengths.length === 0) {
+      setBinsRange([5, 20])
+      return
+    }
+    const baseLength = Math.max(...lengths)
+    const min = Math.max(5, Math.floor(Math.log2(baseLength)))
+    const max = Math.min(200, Math.floor(Math.sqrt(baseLength) * 2))
+    setBinsRange(prev => {
+      if (prev[0] !== min || prev[1] !== max) return [min, max]
+      return prev
+    })
+  }, [data1.length, data2.length])
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || allData.length === 0) return
@@ -167,6 +185,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
         .style("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.1)")
         .style("opacity", 0)
         .style("visibility", "hidden")
+        .style("top", "0px")
 
       // Create clipping path
       svg
@@ -281,7 +300,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
           svg.select<SVGGElement>(".x-axis").call(d3.axisBottom(newXScale))
 
           // Update bars directly
-          datasetBins.forEach(({ dataset, bins }) => {
+          datasetBins.forEach(({ dataset }) => {
             svg
               .selectAll(`.bar-${dataset.key}`)
               .attr("x", (d: any) => newXScale(d.x0))
@@ -389,9 +408,10 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
           .attr("width", (d) => Math.max(0, initialXScale(d.x1!) - initialXScale(d.x0!)))
           .attr("height", (d) => innerHeight - yScale(d.length))
           .attr("fill", dataset.color)
-          .attr("opacity", 0.6)
+          .attr("opacity", 0.5)
           .attr("stroke", dataset.color)
           .attr("stroke-width", 0.5)
+          .style("mix-blend-mode", "overlay")
           .style("display", visibleLines[dataset.key as keyof typeof visibleLines] ? "block" : "none")
       })
 
@@ -436,6 +456,24 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
         }
       })
 
+      // Helper function to highlight bars
+      const highlightBars = (binRange: { x0: number; x1: number; datasets: Array<{ dataset: any; bin: any }> }) => {
+        binRange.datasets.forEach(({ dataset }) => {
+          svg
+            .selectAll(`.bar-${dataset.key}`)
+            .filter((d: any) => d.x0 === binRange.x0 && d.x1 === binRange.x1)
+            .attr("opacity", 0.8)
+            .attr("stroke-width", 2)
+        });
+      }
+
+      // Helper function to reset bar highlighting
+      const resetBarHighlight = () => {
+        datasetBins.forEach(({ dataset }) => {
+          svg.selectAll(`.bar-${dataset.key}`).attr("opacity", 0.5).attr("stroke-width", 0.5)
+        })
+      }
+
       // Create hover areas for each unique bin range
       chartContent
         .selectAll(".hover-area")
@@ -457,6 +495,8 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
 
           if (datasetsWithData.length === 0) return
 
+          highlightBars(d)
+
           // Build tooltip content for datasets with data in this bin range
           let tooltipContent = `<div style="margin-bottom: 8px;"><strong>Range: ${d.x0.toFixed(1)} - ${d.x1.toFixed(1)}</strong></div>`
 
@@ -472,9 +512,17 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
             let left = event.pageX + 15
             let top = event.pageY - 15
 
+            // Check if tooltip would go off the right edge
             if (left + tooltipRect.width > window.innerWidth) {
               left = event.pageX - tooltipRect.width - 15
             }
+
+            // Check if tooltip would go off the bottom edge
+            if (top + tooltipRect.height > window.innerHeight) {
+              top = event.pageY - tooltipRect.height + 15
+            }
+
+            // Check if tooltip would go off the top edge
             if (top < 0) {
               top = event.pageY + 15
             }
@@ -482,7 +530,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
             tooltip.style("left", left + "px").style("top", top + "px")
           }
         })
-        .on("mousemove", (event, d) => {
+        .on("mousemove", (event) => {
           if (localIsPanning) return
 
           const tooltipNode = tooltip.node() as HTMLElement
@@ -494,6 +542,11 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
             if (left + tooltipRect.width > window.innerWidth) {
               left = event.pageX - tooltipRect.width - 15
             }
+
+            if (top + tooltipRect.height > window.innerHeight) {
+              top = event.pageY - tooltipRect.height + 15
+            }
+
             if (top < 0) {
               top = event.pageY + 15
             }
@@ -503,6 +556,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
         })
         .on("mouseleave", () => {
           tooltip.style("opacity", 0).style("visibility", "hidden")
+          resetBarHighlight()
         })
     }
 
@@ -544,94 +598,108 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
     <div className="w-full h-full flex flex-col">
       {/* Chart Title and Controls */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Intensity Distribution</h2>
+        <h2 className="text-lg font-semibold">Intensity Distribution</h2>
 
         <div className="flex items-center gap-4">
-          {/* Bin Count Selector */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Bins:</span>
-            <Select value={binCount.toString()} onValueChange={(value) => setBinCount(Number.parseInt(value))}>
-              <SelectTrigger className="w-16 h-7 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[10, 15, 20, 25, 30, 35, 40, 45, 50].map((count) => (
-                  <SelectItem key={count} value={count.toString()}>
-                    {count}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
 
-          {/* Legend */}
-          {activeDatasets.length > 0 && (
+          <TooltipProvider>
             <div className="flex gap-2 items-center">
-              {activeDatasets.map((dataset, index) => (
-                <div key={dataset.key} className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex items-center gap-1 h-7 px-2 text-xs"
-                    onClick={() => toggleLineVisibility((index + 1) as 1 | 2)}
-                    title={`Toggle ${dataset.name} visibility`}
-                  >
-                    {visibleLines[dataset.key as keyof typeof visibleLines] ? <Eye size={12} /> : <EyeOff size={12} />}
-                    <div
-                      className="w-2 h-2 rounded-full"
-                      style={{
-                        backgroundColor: visibleLines[dataset.key as keyof typeof visibleLines]
-                          ? dataset.color
-                          : "#d1d5db",
-                        opacity: visibleLines[dataset.key as keyof typeof visibleLines] ? 1 : 0.5,
-                      }}
-                    />
-                    <span
-                      className={`text-xs font-medium ${
-                        visibleLines[dataset.key as keyof typeof visibleLines] ? "" : "text-muted-foreground"
-                      }`}
-                    >
-                      {dataset.config?.col},{dataset.config?.row}
-                    </span>
-                  </Button>
+              {activeDatasets.map((dataset, index) => {
+                const lineNumber = (index + 1) as 1 | 2
+                const isVisible = visibleLines[dataset.key as keyof typeof visibleLines]
+                const showStatsActive = showStats[dataset.key as keyof typeof showStats]
+                const showKDEActive = showKDE[dataset.key as keyof typeof showKDE]
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0"
-                    onClick={() => toggleKDE((index + 1) as 1 | 2)}
-                    disabled={!visibleLines[dataset.key as keyof typeof visibleLines]}
-                    title={`Toggle ${dataset.name} KDE curve`}
-                  >
-                    <TrendingUp
-                      size={12}
-                      className={
-                        showKDE[dataset.key as keyof typeof showKDE] ? "text-primary" : "text-muted-foreground"
-                      }
-                    />
-                  </Button>
+                return (
+                  <div key={dataset.key} className="flex items-center">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={`flex items-center gap-1 h-7 px-2 py-0 text-xs rounded-r-none border-r-0 ${!isVisible ? "opacity-50" : ""
+                            }`}
+                          onClick={() => toggleLineVisibility(lineNumber)}
+                        >
+                          <div
+                            className="w-2 h-2 rounded-full"
+                            style={{
+                              backgroundColor: isVisible ? dataset.color : "#d1d5db",
+                            }}
+                          />
+                          <span className="font-medium">
+                            {dataset.config?.col},{dataset.config?.row}
+                          </span>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Toggle Cell({dataset.config?.col},{dataset.config?.row}) visibility</p>
+                      </TooltipContent>
+                    </Tooltip>
 
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0"
-                    onClick={() => toggleStats((index + 1) as 1 | 2)}
-                    disabled={!visibleLines[dataset.key as keyof typeof visibleLines]}
-                    title={`Toggle ${dataset.name} statistics`}
-                  >
-                    <BarChart3
-                      size={12}
-                      className={
-                        showStats[dataset.key as keyof typeof showStats] ? "text-primary" : "text-muted-foreground"
-                      }
-                    />
-                  </Button>
-                </div>
-              ))}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={`h-7 px-1 py-0 rounded-none ${!isVisible ? "opacity-50 cursor-not-allowed" : showKDEActive ? "bg-gray-100" : ""
+                            }`}
+                          onClick={() => toggleKDE(lineNumber)}
+                          disabled={!visibleLines[dataset.key as keyof typeof visibleLines]}
+                        >
+                          <TrendingUp
+                            size={12}
+                          />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Toggle Cell({dataset.config?.col},{dataset.config?.row}) KDE curve</p>
+                      </TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className={`h-7 px-1 py-0 rounded-l-none ${!isVisible ? "opacity-50 cursor-not-allowed" : showStatsActive ? "bg-gray-100" : ""
+                            }`}
+                          onClick={() => toggleStats(lineNumber)}
+                          disabled={!visibleLines[dataset.key as keyof typeof visibleLines]}
+                        >
+                          <BarChart3
+                            size={12}
+                          />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Toggle Cell({dataset.config?.col},{dataset.config?.row}) KDE curve</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                )
+              })}
             </div>
-          )}
+          </TooltipProvider>
+        </div>
+        <div className="flex items-center gap-1 pl-2">
+          <span className="text-sm font-medium">Bins:</span>
+          <Input
+            type="number"
+            className="h-7 w-auto text-xs text-center px-1"
+            value={binCount}
+            min={binsRange[0]}
+            max={binsRange[1]}
+            onChange={(e) => {
+              const raw = Number(e.target.value)
+              const clamped = Math.min(binsRange[1], Math.max(binsRange[0], raw))
+              setBinCount(clamped)
+            }}
+            style={{ width: `${Math.max(binCount.toString().length, 2) + 3}ch` }}
+          />
         </div>
       </div>
+
 
       {/* Chart area */}
       <div ref={containerRef} className="flex-1 min-h-0">

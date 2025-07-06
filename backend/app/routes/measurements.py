@@ -48,8 +48,8 @@ async def get_slope_frame(request: Request):
         outputX[row_indices, col_indices] = measurements_x[measurement_indices]
         outputY = np.full(subaperture_mask.shape, np.nan)
         outputY[row_indices, col_indices] = measurements_y[measurement_indices]
-        processed_x, _, _ = process_frame(scale_type, interval_type, outputX)
-        processed_y, _, _ = process_frame(scale_type, interval_type, outputY)
+        processed_x = process_frame(scale_type, interval_type, outputX)
+        processed_y = process_frame(scale_type, interval_type, outputY)
         outputX = np.where(np.isnan(processed_x), None, processed_x)
         outputY = np.where(np.isnan(processed_y), None, processed_y)
         del system

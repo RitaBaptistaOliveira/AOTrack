@@ -1,8 +1,8 @@
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
-import { useCallback, useEffect, useRef, useState } from "react"
-import { fetchDefaultPixelCharts } from "@/api/pixel/fetchDefaultCharts"
-import { fetchHistogram } from "@/api/pixel/fetchHistogram"
+import { useCallback, useEffect, useState } from "react"
+import { fetchDefaultStats } from "@/api/pixel/fetchDefaultStats"
 import { fetchPointStats } from "@/api/pixel/fetchPointStats"
+import { fetchFrame } from "@/api/pixel/fetchFrame"
 import type { DataPoint } from "@/types/visualization"
 
 type FrameMeta = {
@@ -13,16 +13,13 @@ type FrameMeta = {
     overallMax: number
 }
 
-type DefaultCharts = {
-    frameMeans: DataPoint[]
-    stats: {
-        min: number
-        max: number
-        mean: number
-        median: number
-        std: number
-        variance: number
-    }
+type DefaultStats = {
+    min: number
+    max: number
+    mean: number
+    median: number
+    std: number
+    variance: number
 }
 
 type PointStats = {
@@ -39,57 +36,11 @@ type PointStats = {
 
 export function useFrameBuffer(wfsIndex: number) {
     const { intervalType, scaleType } = useChartInteraction()
-    const [isLoading, setLoading] = useState(false)
-    const buffer = useRef(new Map<number, number[][]>())
+    // const buffer = useRef(new Map<number, number[][]>())
     const [meta, setMeta] = useState<FrameMeta | undefined>()
-    const [charts, setCharts] = useState<DefaultCharts | undefined>()
-    const [numBins, setNumBins] = useState(30)
-
-    const [globalHistogramData, setGlobalHistogramData] = useState<{ counts: number[]; bins: number[] } | undefined>()
-    const [histogramData, setHistogramData] = useState<{ counts: number[]; bins: number[] } | undefined>()
-    const [histogramLoading, setHistogramLoading] = useState(false)
-    const [histogramError, setHistogramError] = useState<Error | null>(null)
-
-    const [pointStatsData, setPointStatsData] = useState<PointStats | undefined>()
-    const [pointStatsLoading, setPointStatsLoading] = useState(false)
-    const [pointStatsError, setPointStatsError] = useState<Error | null>(null)
-
-    const fetchFrame = async (frameIndex: number) => {
-        const form = new FormData()
-        form.append("frame_index", frameIndex.toString())
-        form.append("wfs_index", wfsIndex.toString())
-        form.append("interval_type", intervalType)
-        form.append("scale_type", scaleType)
-
-        const res = await fetch("http://localhost:8000/pixel/get-frame", {
-            method: "POST",
-            body: form,
-            credentials: "include",
-        })
-
-        const json = await res.json()
-        buffer.current.set(frameIndex, json.frame)
-    }
-
-    const preloadAround = (center: number, radius = 5) => {
-        const min = Math.max(0, center - radius)
-        const max = center + radius
-        setLoading(true)
-
-        const toFetch = []
-        for (let i = min; i <= max; i++) {
-            if (!buffer.current.has(i)) {
-                toFetch.push(fetchFrame(i))
-            }
-        }
-
-        Promise.all(toFetch).then(() => {
-            for (const key of buffer.current.keys()) {
-                if (key < min || key > max) buffer.current.delete(key)
-            }
-            setLoading(false)
-        })
-    }
+    const [stats, setStats] = useState<DefaultStats | undefined>()
+    const [buffer, setBuffer] = useState<Map<number, number[][]>>(new Map())
+    const [pointData, setPointData] = useState<PointStats | undefined>()
 
     // Call fetchMeta once
     useEffect(() => {
@@ -117,113 +68,82 @@ export function useFrameBuffer(wfsIndex: number) {
         fetchMeta()
     }, [wfsIndex])
 
-    const fetchGlobalHistogramData = useCallback(async () => {
-        setHistogramLoading(true)
-        setHistogramError(null)
-        try {
-            const res = await fetchHistogram({
-                wfsIndex,
-                numBins
-            })
-            setGlobalHistogramData(res)
-        } catch (err) {
-            setHistogramError(err as Error)
-        } finally {
-            setHistogramLoading(false)
-        }
-    }, [wfsIndex, numBins])
-
-    const fetchHistogramData = useCallback(
-        async (options?: { col?: number; row?: number }) => {
-            setHistogramLoading(true)
-            setHistogramError(null)
-            try {
-                const res = await fetchHistogram({
-                    wfsIndex,
-                    numBins,
-                    col: options?.col,
-                    row: options?.row,
-                })
-                console.log(res)
-                setHistogramData({
-                    counts: res.counts1,
-                    bins: res.bins1
-                })
-            } catch (err) {
-                setHistogramError(err as Error)
-            } finally {
-                setHistogramLoading(false)
-            }
-        },
-        [wfsIndex, numBins]
-    )
-
     useEffect(() => {
-        const fetchCharts = async () => {
+        const fetchStats = async () => {
             try {
-                const result = await fetchDefaultPixelCharts({
+                const result = await fetchDefaultStats({
                     wfsIndex
                 })
 
-                setCharts({
-                    frameMeans: result.frame_means,
-                    stats: {
-                        min: result.min,
-                        max: result.max,
-                        mean: result.mean,
-                        median: result.median,
-                        std: result.std,
-                        variance: result.variance,
-                    },
+                setStats({
+                    min: result.min,
+                    max: result.max,
+                    mean: result.mean,
+                    median: result.median,
+                    std: result.std,
+                    variance: result.variance,
                 })
             } catch (err) {
                 console.error("Failed to fetch default pixel charts:", err)
             }
         }
-
-        fetchCharts()
-        fetchGlobalHistogramData()
+        fetchStats()
     }, [wfsIndex, intervalType, scaleType])
 
-    const fetchPointStatsData = useCallback(
+    const fetchPointData = useCallback(
         async (col: number, row: number) => {
-            setPointStatsLoading(true)
-            setPointStatsError(null)
             try {
                 const res = await fetchPointStats({
                     wfsIndex,
                     col,
-                    row
+                    row,
+                    intervalType,
+                    scaleType
                 })
-                setPointStatsData(res)
+                setPointData(res)
             } catch (err) {
-                setPointStatsError(err as Error)
-            } finally {
-                setPointStatsLoading(false)
+                console.error("Failed to fetch point data:", err)
+                setPointData(undefined)
             }
         },
-        [wfsIndex, numBins]
+        [wfsIndex]
     )
+
+    const preloadAround = async (center: number, radius = 5) => {
+        const min = Math.max(0, center - radius)
+        const max = Math.min(center + radius, meta?.numFrames ?? 1)
+
+        const newBuffer = new Map(buffer)
+
+        for (let frameIndex = min; frameIndex <= max; frameIndex++) {
+            if (!buffer.has(frameIndex)) {
+                try {
+                    const json = await fetchFrame({ frameIndex, wfsIndex, scaleType, intervalType })
+
+                    newBuffer.set(frameIndex, json.frame)
+                } catch (err) {
+                    console.error(`Failed to fetch frame ${frameIndex}:`, err)
+                }
+            }
+        }
+
+        for (const key of newBuffer.keys()) {
+            if (key < min || key > max) newBuffer.delete(key)
+        }
+
+        setBuffer(newBuffer)
+    }
+
 
 
     return {
-        getFrame: (i: number) => buffer.current.get(i),
-        hasFrame: (i: number) => buffer.current.has(i),
-        isLoading,
+        getFrame: (i: number) => buffer.get(i),
+        hasFrame: (i: number) => buffer.has(i),
         preloadAround,
         meta,
-        charts,
-        numBins,
-        setNumBins,
-        globalHistogramData,
-        histogramData,
-        histogramLoading,
-        histogramError,
-        fetchHistogramData,
-        fetchGlobalHistogramData,
-        pointStatsData,
-        pointStatsLoading,
-        pointStatsError,
-        fetchPointStatsData,
+        stats,
+        pointData,
+        fetchPointData,
+        setPointData
     }
 }

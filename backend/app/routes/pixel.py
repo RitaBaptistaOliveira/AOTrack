@@ -34,7 +34,7 @@ async def get_pixel_frame(request: Request):
 
         frame = data[frame_index]
         
-        transformed, _, _ = process_frame(scale_type, interval_type, frame)
+        transformed = process_frame(scale_type, interval_type, frame)
         
         del system
         gc.collect()
@@ -44,7 +44,7 @@ async def get_pixel_frame(request: Request):
     
     return JSONResponse({"frame": transformed.tolist()})
 
-@router.post("/pixel/flat-tile")
+@router.post("/pixel/tile")
 async def get_flat_tile_post(request: Request):
     session = await get_session_from_cookie(request)
     if session is None or session.file_path is None:
@@ -56,6 +56,8 @@ async def get_flat_tile_post(request: Request):
     index_start = int(form.get("index_start"))
     index_end = int(form.get("index_end"))
     wfs_index = int(form.get("wfs_index", 0))
+    interval_type = form.get("interval_type", "minmax")
+    scale_type = form.get("scale_type", "linear")
 
     if frame_end <= frame_start:
         raise HTTPException(status_code=400, detail="Invalid frame range")
@@ -78,8 +80,9 @@ async def get_flat_tile_post(request: Request):
 
         tile_data = []
         for frame in range(frame_start, frame_end):
+            transformed = process_frame(scale_type, interval_type, data3d[frame])
             flat = [
-                data3d[frame][col][row]
+                transformed[col][row]
                 for col in range(num_cols)
                 for row in range(num_rows)
             ]
@@ -91,13 +94,6 @@ async def get_flat_tile_post(request: Request):
 
         return JSONResponse({
             "tile": np.array(tile_data).tolist(),
-            "frame_start": frame_start,
-            "frame_end": frame_end,
-            "index_start": index_start,
-            "index_end": index_end,
-            "num_frames": num_frames,
-            "num_cols": num_cols,
-            "num_rows": num_rows
         })
 
     except Exception as e:
@@ -142,7 +138,7 @@ async def get_pixel_meta(request: Request):
         print(f"Meta error: {e}")
         raise HTTPException(status_code=500, detail="Failed to extract metadata")
     
-@router.post("/pixel/get-default-pixel-charts")
+@router.post("/pixel/get-default-stats")
 async def get_default_values(request: Request):
     session = await get_session_from_cookie(request)
     if session is None or session.file_path is None:
@@ -156,13 +152,7 @@ async def get_default_values(request: Request):
         data = system.wavefront_sensors[wfs_index].detector.pixel_intensities.data
         del system
         gc.collect()
-    
-        tmp = np.mean(data, axis=(1, 2))    
-        
-        frame_means = [{"x": int(i), "y": float(v)} for i, v in enumerate(tmp)]
-        
         return JSONResponse({
-            "frame_means": frame_means,
             "min": float(np.min(data)),
             "max": float(np.max(data)),
             "mean": float(np.mean(data)),
@@ -215,47 +205,3 @@ async def get_pixel_point_stats(request: Request):
     except Exception as e:
         print(f"Exception occurred: {e}")
         raise HTTPException(status_code=500, detail=f"Point stats error: {e}")
-
-
-@router.post("/pixel/get-histogram")
-async def get_pixel_histogram(request: Request):
-    session = await get_session_from_cookie(request)
-    if session is None or session.file_path is None:
-        raise HTTPException(status_code=400, detail="No active session or file path")
-
-    form = await request.form()
-    wfs_index = int(form.get("wfs_index", 0))
-    num_bins = int(form.get("num_bins", 30))
-
-    col = form.get("col")
-    row = form.get("row")
-    point_selected = col is not None and row is not None
-
-    try:
-        system = aotpy.AOSystem.read_from_file(session.file_path)
-        data = system.wavefront_sensors[wfs_index].detector.pixel_intensities.data
-        del system
-        gc.collect()
-
-        if point_selected:
-            col = int(col)
-            row = int(row)
-            values = data[:, col, row]
-            counts_p, bins_p = np.histogram(values.flatten(), bins=num_bins, range=[np.min(data), np.max(data)])
-        else:
-            counts_p = np.ndarray([])
-            bins_p = np.ndarray([])
-            
-        tmp = np.mean(data, axis=(1, 2))   
-        counts, bins = np.histogram(tmp.flatten(), bins=num_bins, range=[np.min(data), np.max(data)])
-
-        
-        return JSONResponse({
-            "counts": counts.tolist(),
-            "bins": bins.tolist(),
-            "counts1" : counts_p.tolist(),
-            "bins1" : bins_p.tolist(),
-        })
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Histogram error: {e}")

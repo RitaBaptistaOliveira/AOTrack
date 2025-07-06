@@ -6,6 +6,8 @@ import { ChevronUp, ChevronDown } from "lucide-react"
 import ControlBar from "../controls/control-bar"
 import { useInteractions } from "@/hooks/use-interactions"
 import { drawFlatHeatmapFromBuffer } from "@/utils"
+import { fetchTile } from "@/api/pixel/fetchTile"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import * as d3 from "d3"
 
 const TILE_SIZE = 256
@@ -13,6 +15,7 @@ const CELL_SIZE = 6
 
 interface FlatHeatmapProps {
   numFrames: number
+  numRows: number
   numIndexes: number
   minValue: number
   maxValue: number
@@ -22,6 +25,7 @@ interface FlatHeatmapProps {
 
 export default function FlapHeatmap({
   numFrames,
+  numRows,
   numIndexes,
   minValue,
   maxValue,
@@ -31,14 +35,43 @@ export default function FlapHeatmap({
   const tileCache = useRef(new Map<string, { canvas: HTMLCanvasElement; frameStart: number; indexStart: number }>())
   const interpolator = d3.scaleSequential([minValue, maxValue], d3.interpolateViridis)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const requestedTiles = useRef(new Set<string>())
   const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
   const [hoveredPoint, setHoveredPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
   const [showTooltips, setShowTooltips] = useState(true)
   const [showLegend, setShowLegend] = useState(true)
   const [showControlBar, setShowControlBar] = useState(true)
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
   const prevPointRef = useRef<{ frame: number, index: number, value: number } | null>(null)
   const lastVisibleKeys = useRef<Set<string>>(new Set())
+  const { intervalType, scaleType } = useChartInteraction()
+
+  const pendingTiles = useRef<Set<string>>(new Set())
+
+  const queueVisibleTileFetches = useCallback((tiles: ReturnType<typeof getVisibleTiles>) => {
+    tiles.forEach(tile => {
+      const key = tile.key
+      if (!tileCache.current.has(key) && !requestedTiles.current.has(key)) {
+        pendingTiles.current.add(key)
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const tilesToFetch = Array.from(pendingTiles.current)
+      pendingTiles.current.clear()
+
+      tilesToFetch.forEach((key) => {
+        const [frameRange, indexRange] = key.split(":")
+        const [frameStart, frameEnd] = frameRange.split("-").map(Number)
+        const [indexStart, indexEnd] = indexRange.split("-").map(Number)
+
+        fetchAndRenderTile(frameStart, frameEnd, indexStart, indexEnd)
+      })
+    }, 100) // adjust throttle interval as needed
+
+    return () => clearInterval(interval)
+  }, [])
 
   const getVisibleTiles = (
     offset: { x: number; y: number },
@@ -77,36 +110,38 @@ export default function FlapHeatmap({
   const fetchAndRenderTile = async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
     const key = `${frameStart}-${frameEnd}:${indexStart}-${indexEnd}`
     if (tileCache.current.has(key)) return
+    requestedTiles.current.add(key)
 
-    const form = new FormData()
-    form.append("frame_start", frameStart.toString())
-    form.append("frame_end", frameEnd.toString())
-    form.append("index_start", indexStart.toString())
-    form.append("index_end", indexEnd.toString())
-    form.append("wfs_index", "0")
+    try {
+      const json = await fetchTile({
+        frameStart,
+        frameEnd,
+        indexStart,
+        indexEnd,
+        wfsIndex: 0,
+        scaleType: scaleType,
+        intervalType: intervalType
+      })
+      const tileData = json.tile
 
-    const res = await fetch("http://localhost:8000/pixel/flat-tile", {
-      method: "POST",
-      body: form,
-      credentials: "include"
-    })
+      const canvas = document.createElement("canvas")
+      canvas.width = tileData.length * CELL_SIZE
+      canvas.height = tileData[0].length * CELL_SIZE
+      const ctx = canvas.getContext("2d")!
 
-    const json = await res.json()
-    const tileData = json.tile
-
-    const canvas = document.createElement("canvas")
-    canvas.width = tileData.length * CELL_SIZE
-    canvas.height = tileData[0].length * CELL_SIZE
-    const ctx = canvas.getContext("2d")!
-
-    for (let i = 0; i < tileData.length; i++) {
-      for (let j = 0; j < tileData[i].length; j++) {
-        ctx.fillStyle = interpolator(tileData[i][j])
-        ctx.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+      for (let i = 0; i < tileData.length; i++) {
+        for (let j = 0; j < tileData[i].length; j++) {
+          ctx.fillStyle = interpolator(tileData[i][j])
+          ctx.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+        }
       }
-    }
 
-    tileCache.current.set(key, { canvas, frameStart, indexStart })
+      tileCache.current.set(key, { canvas, frameStart, indexStart })
+
+      requestDraw()
+    } finally {
+      requestedTiles.current.delete(key)
+    }
 
   }
 
@@ -117,10 +152,7 @@ export default function FlapHeatmap({
     const visible = getVisibleTiles(offset, zoom, canvas.width, canvas.height)
     const visibleKeys = new Set(visible.map(t => t.key))
 
-    const currentVisibleKeys = new Set(visibleKeys)
-    if (visibleKeys.size > 0) {
-      lastVisibleKeys.current = currentVisibleKeys
-    }
+    lastVisibleKeys.current = visibleKeys
 
     const buffers = visible
       .map(({ key }) => tileCache.current.get(key))
@@ -128,19 +160,14 @@ export default function FlapHeatmap({
 
     drawFlatHeatmapFromBuffer(ctx, offset, zoom, buffers, CELL_SIZE, numFrames, numIndexes, selectedPoint || undefined)
 
-    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
-    debounceTimeout.current = setTimeout(() => {
-      visible.forEach(tile => {
-        fetchAndRenderTile(tile.frameStart, tile.frameEnd, tile.indexStart, tile.indexEnd)
-      })
-    }, 150)
+    queueVisibleTileFetches(visible)
 
     for (const key of tileCache.current.keys()) {
       if (!lastVisibleKeys.current.has(key)) {
         tileCache.current.delete(key)
       }
     }
-  }, [getVisibleTiles, selectedPoint])
+  }, [selectedPoint])
 
   const {
     mode, setMode, clickPosition, hoverPos, offsetRef, zoomRef, zoomIn, zoomOut, resetZoom, handleMouseDown,
@@ -153,7 +180,7 @@ export default function FlapHeatmap({
     } else {
       setSelectedPoint({
         frame: selectedCell.frame,
-        index: selectedCell.col * 2 + selectedCell.row, //!!!!!!!!!!!!!!!!!!!!!! missing the number of rows
+        index: selectedCell.col * numRows + selectedCell.row,
         value: selectedCell.value
       })
     }
@@ -224,7 +251,7 @@ export default function FlapHeatmap({
     const j = index - indexTile
     const tileCanvas = tile.canvas
 
-    const tileCtx = tileCanvas.getContext("2d")
+    const tileCtx = tileCanvas.getContext("2d", { willReadFrequently: true })
     if (!tileCtx) return undefined
 
     const pixel = tileCtx.getImageData(j * CELL_SIZE, i * CELL_SIZE, 1, 1).data

@@ -23,7 +23,7 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
 
     const [showStats, setShowStats] = useState({ line1: false, line2: false })
 
-    const margin = { top: 10, right: 10, bottom: 40, left: 55 }
+    const margin = { top: 5, right: 10, bottom: 40, left: 55 }
     const colors = ["#3b82f6", "#ef4444"]
 
     const datasets = [

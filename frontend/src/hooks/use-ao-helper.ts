@@ -1,13 +1,9 @@
 import type { MetadataSummary } from "../types/metadata_summary"
 import { useAoSession } from "../contexts/ao-session-context"
-import { useChartInteraction } from "@/contexts/chart-interactions-context"
-import { useRef } from "react"
 
 export function useAoHelper() {
 
   const { setSession } = useAoSession()
-  const { intervalType, scaleType } = useChartInteraction()
-  const wfsIndexRef = useRef(0)
 
   const uploadFile = async (selectedFile: File) => {
     if (!selectedFile.name.endsWith(".fits")) {
@@ -52,65 +48,9 @@ export function useAoHelper() {
     }
   }
 
-  const getPixelIntensities = async () => {
-    const formData = new FormData()
-    formData.append("interval_type", intervalType.toString())
-    formData.append("scale_type", scaleType.toString())
-    formData.append("wfs_index", wfsIndexRef.current.toString())
-    try {
-      const response = await fetch("http://localhost:8000/pixel/get-frames", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      })
-
-      if (!response.ok) throw new Error("Invalid response from server")
-
-      const data = await response.json()
-      const modifiedFrame = data.data
-
-      if (!Array.isArray(modifiedFrame)) {
-        throw new Error("Invalid frame data format returned from server")
-      }
-
-      return modifiedFrame
-    } catch (err) {
-      console.error("Scale or Interval error when trying to apply to frame:", err)
-    } return null
-  }
-
-  const getCommands = async () => {
-    const formData = new FormData()
-    formData.append("interval_type", intervalType.toString())
-    formData.append("scale_type", scaleType.toString())
-    try {
-      const response = await fetch("http://localhost:8000/command/get-commands", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      })
-
-      if (!response.ok) throw new Error("Invalid response from server")
-
-      const data = await response.json()
-      const original_data = data.original_data
-      const multiplied_data = data.multiplied_data
-
-      if (!Array.isArray(original_data)) {
-        throw new Error("Invalid command data format returned from server")
-      }
-
-      return {original_data, multiplied_data}
-    } catch (err) {
-      console.error("Scale or Interval error when trying to apply to frame:", err)
-    } return null
-  }
-
   return {
     uploadFile,
-    fetchSession,
-    getPixelIntensities,
-    getCommands
+    fetchSession
   }
 }
 

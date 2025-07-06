@@ -53,4 +53,4 @@ def process_frame(scale_type, interval_type, frame_data):
     scaled = scale_func(clipped)
     # scaled = scale_func(normalized)
     
-    return scaled, vmin, vmax
+    return scaled

@@ -57,7 +57,6 @@ export default function Visualization({
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number; value: number } | null>(null)
   const interpolator = useRef<d3.ScaleSequential<string>>(d3.scaleSequential([minValue, maxValue], d3.interpolateViridis))
 
-
   const [showTooltips, setShowTooltips] = useState(true)
   const [showLegend, setShowLegend] = useState(true)
   const [showControlBar, setShowControlBar] = useState(true)
