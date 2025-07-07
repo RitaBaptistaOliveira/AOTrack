@@ -254,9 +254,9 @@ export default function FlapHeatmap({
     const tileCtx = tileCanvas.getContext("2d", { willReadFrequently: true })
     if (!tileCtx) return undefined
 
-    const pixel = tileCtx.getImageData(j * CELL_SIZE, i * CELL_SIZE, 1, 1).data
+    const pixel = tileCtx.getImageData(j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE).data
 
-    const gray = pixel[0] / 255 // !!!!
+    const gray = pixel[0]
     return gray
   }
 

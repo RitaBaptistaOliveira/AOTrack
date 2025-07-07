@@ -30,6 +30,14 @@ export async function fetchPointStats({
   formData.append("interval_type", intervalType)
   formData.append("scale_type", scaleType)
 
+  console.log("Fetching point stats with data:", {
+    wfsIndex,
+    col,
+    row,
+    intervalType,
+    scaleType,
+  })
+
   const res = await fetch("http://localhost:8000/pixel/get-point-stats", {
     method: "POST",
     body: formData,
@@ -39,6 +47,7 @@ export async function fetchPointStats({
   if (!res.ok) {
     throw new Error(`Point stats fetch failed: ${res.statusText}`)
   }
-  console.log("Point stats fetched successfully:", res)
-  return await res.json()
+  const json = await res.json()
+  console.log("Point stats fetched successfully:", json)
+  return json
 }
