@@ -133,8 +133,7 @@ export default function Visualization({
   // Notify parent of cell selection only when selection actually changes
   useEffect(() => {
 
-    const cellChanged =
-      selectedCell?.x !== prevSelectedCellRef.current?.x || selectedCell?.y !== prevSelectedCellRef.current?.y || selectedCell?.value !== prevSelectedCellRef.current?.value
+    const cellChanged = selectedCell?.x !== prevSelectedCellRef.current?.x || selectedCell?.y !== prevSelectedCellRef.current?.y || selectedCell?.value !== prevSelectedCellRef.current?.value
 
     if (cellChanged) {
       prevSelectedCellRef.current = selectedCell

@@ -13,19 +13,19 @@ interface FrameSliderProps {
 
 export default function FrameSlider({totalFrames, currentFrame, setCurrentFrame, isPlaying = false, setIsPlaying,}: FrameSliderProps) {
   const [isEditing, setIsEditing] = useState(false)
-  const [inputValue, setInputValue] = useState((currentFrame + 1).toString())
+  const [inputValue, setInputValue] = useState((currentFrame).toString())
 
   const goToFrame = useCallback((frame: number) => {
     if (totalFrames <= 0) return;
     const frameNum = Math.max(0, Math.min(frame, totalFrames - 1))
     setCurrentFrame(frameNum)
-    setInputValue((frameNum + 1).toString())
+    setInputValue((frameNum).toString())
   }, [totalFrames, setCurrentFrame])
 
   const handleInputSubmit = useCallback(() => {
     const num = parseInt(inputValue)
-    if (!isNaN(num)) goToFrame(num - 1)
-    else setInputValue((currentFrame + 1).toString())
+    if (!isNaN(num)) goToFrame(num)
+    else setInputValue((currentFrame).toString())
     setIsEditing(false)
   }, [inputValue, currentFrame, goToFrame])
 
@@ -103,9 +103,9 @@ export default function FrameSlider({totalFrames, currentFrame, setCurrentFrame,
           ) : (
             <div className="w-full flex flex-row items-center justify-center gap-1">
               <Button variant="default" size="icon" onClick={() => setIsEditing(true)} className="h-8 w-8 border font-normal">
-                {currentFrame + 1}
+                {currentFrame}
               </Button>
-              <div>/ {totalFrames}</div>
+              <div>/ {totalFrames - 1}</div>
             </div>
           )}
         </div>

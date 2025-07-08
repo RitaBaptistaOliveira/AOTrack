@@ -17,6 +17,7 @@ interface HeatmapVisualizationProps {
   data: [number[][], number[][]]
   numRows: number
   numCols: number
+  mask: number[][]
   numFrames: number
   minValue: number
   maxValue: number
@@ -29,6 +30,7 @@ export default function DualHeatmap({
   data,
   numRows,
   numCols,
+  mask,
   numFrames,
   minValue,
   maxValue,
@@ -131,9 +133,25 @@ export default function DualHeatmap({
     } else {
       const idx = selectedPoint.index
       setCurrentFrame(selectedPoint.frame)
-      setSelectedCell({ x: Math.floor(idx / numRows), y: idx % numRows, values: selectedPoint.values })
-    }
+      let found = false
+      for (let r = 0; r < numRows; r++) {
+        for (let c = 0; c < numCols; c++) {
+          if (mask[r][c] === idx) {
+            setSelectedCell({ x: c, y: r, values: selectedPoint.values })
+            found = true
+            break
+          }
+        }
+        if (found) break
+      }
 
+      if (!found) {
+        console.warn("Index not found in mask:", idx)
+        setSelectedCell(null)
+      }
+
+
+    }
   }, [selectedPoint])
 
   // Notify parent of cell selection only when selection actually changes
@@ -195,7 +213,7 @@ export default function DualHeatmap({
     [numCols, numRows],
   )
 
-  // If the clicked position changes, so does the selected sell
+  // If the clicked position changes, so does the selected cell
   useEffect(() => {
     if (clickPosition) {
       const canvas = canvasRefs.current[0]
@@ -206,7 +224,7 @@ export default function DualHeatmap({
           data[0][cell.x]?.[cell.y],
           data[1][cell.x]?.[cell.y]
         ]
-        if (values !== undefined) {
+        if (values !== undefined && values[0] !== undefined && values[1] !== undefined && values[0] !== null && values[1] !== null) {
           setSelectedCell({ ...cell, values })
         }
       } else {
@@ -225,7 +243,8 @@ export default function DualHeatmap({
           data[0][cell.x]?.[cell.y],
           data[1][cell.x]?.[cell.y]
         ]
-        if (values !== undefined) {
+        if (values !== undefined && values[0] !== undefined && values[1] !== undefined && values[0] !== null && values[1] !== null) {
+
           setHoveredCell({ ...cell, values })
         }
       } else {
@@ -302,7 +321,7 @@ export default function DualHeatmap({
           </div>
           {hoveredCell && showTooltips && (
             <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none">
-              Cell ({hoveredCell.x}, {hoveredCell.y}): Slope X: {hoveredCell.values[0]}, Slope Y: {hoveredCell.values[1]}
+              Cell ({hoveredCell.x}, {hoveredCell.y}): Slope X: {hoveredCell.values[0].toFixed(2)}, Slope Y: {hoveredCell.values[1].toFixed(2)}
             </div>
           )}
 

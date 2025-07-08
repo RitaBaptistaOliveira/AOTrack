@@ -84,7 +84,6 @@ export default function Pixels() {
   }, [])
 
   useEffect(() => {
-    console.log("Preloading frames around:", currentFrame, "with scaleType:", scaleType, "and intervalType:", intervalType)
     frameBuffer.preloadAround(currentFrame, 5)
   }, [currentFrame, scaleType, intervalType])
 
@@ -139,7 +138,7 @@ export default function Pixels() {
             </div>
             <h3 className="text-lg font-semibold mb-2">Pixel Intensities by Frame</h3>
             <p className="text-foreground mb-4">
-              Click a <span className="font-semibold">Point</span> to show line chart
+              Click a <span className="font-semibold">Point</span> to show the line chart
             </p>
           </Card>
         </GridItem>
@@ -164,7 +163,7 @@ export default function Pixels() {
               </div>
               <h3 className="text-lg font-semibold mb-2">Intensities Distribution</h3>
               <p className="text-foreground mb-4">
-                Click a <span className="font-semibold">Point</span> to show line chart
+                Click a <span className="font-semibold">Point</span> to show the histogram
               </p>
             </Card>
           </GridItem>

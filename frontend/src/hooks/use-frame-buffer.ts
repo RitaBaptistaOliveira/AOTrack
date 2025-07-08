@@ -111,7 +111,10 @@ export function useFrameBuffer(wfsIndex: number) {
 
     const preloadAround = async (center: number, radius = 5) => {
         const min = Math.max(0, center - radius)
-        const max = Math.min(center + radius, meta?.numFrames ?? 1)
+        const max = Math.min(
+            center + radius,
+            meta && typeof meta.numFrames === "number" ? meta.numFrames - 1 : 1
+        )
 
         const newBuffer = new Map(buffer)
 

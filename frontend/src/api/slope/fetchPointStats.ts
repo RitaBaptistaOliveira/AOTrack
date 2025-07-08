@@ -2,10 +2,14 @@ import type { DataPoint } from "@/types/visualization"
 
 export async function fetchSlopePointStats({
   wfsIndex,
-  index
+  index,
+  intervalType,
+  scaleType,
 }: {
   wfsIndex: number
   index: number
+  intervalType: string
+  scaleType: string
 }): Promise<{
   point_means: [DataPoint[], DataPoint[]]
   stats: {
@@ -20,6 +24,8 @@ export async function fetchSlopePointStats({
   const formData = new FormData()
   formData.append("wfs_index", wfsIndex.toString())
   formData.append("index", index.toString())
+  formData.append("interval_type", intervalType)
+  formData.append("scale_type", scaleType)
 
   const res = await fetch("http://localhost:8000/slope/get-point-stats", {
     method: "POST",

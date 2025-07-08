@@ -20,11 +20,6 @@ async def get_slope_frame(request: Request):
     frame_index = int(form.get("frame_index", 0))
     interval_type = form.get("interval_type", "minmax")
     scale_type = form.get("scale_type", "linear")
-    
-    print(wfs_index)
-    print(frame_index)
-    print(interval_type)
-    print(scale_type)
 
     try:
         system = aotpy.AOSystem.read_from_file(session.file_path)
@@ -36,8 +31,7 @@ async def get_slope_frame(request: Request):
         sensor = system.wavefront_sensors[wfs_index]
         measurements = sensor.measurements.data
         subaperture_mask = sensor.subaperture_mask.data
-        num_frames = measurements.shape[0]
-        if not (0 <= frame_index < num_frames):
+        if not (0 <= frame_index < measurements.shape[0]):
             raise HTTPException(status_code=400, detail=f"frame_index {frame_index} out of range")
         
         measurements_x = measurements[frame_index, 0, :]  # X dimension (flat)
@@ -59,11 +53,11 @@ async def get_slope_frame(request: Request):
         raise HTTPException(status_code=500, detail="Failed to load frame")
     
     return JSONResponse({
-        "x_frame": outputX.tolist(),
-        "y_frame": outputY.tolist()
+        "frameX": outputX.tolist(),
+        "frameY": outputY.tolist()
     })
 
-@router.post("/slope/flat-tile")
+@router.post("/slope/tile")
 async def get_flat_tile_post(request: Request):
     session = await get_session_from_cookie(request)
     if session is None or session.file_path is None:
@@ -75,7 +69,9 @@ async def get_flat_tile_post(request: Request):
     index_start = int(form.get("index_start"))
     index_end = int(form.get("index_end"))
     wfs_index = int(form.get("wfs_index", 0))
-
+    interval_type = form.get("interval_type", "minmax")
+    scale_type = form.get("scale_type", "linear")
+    
     if frame_end <= frame_start:
         raise HTTPException(status_code=400, detail="Invalid frame range")
     if index_end <= index_start:
@@ -102,8 +98,11 @@ async def get_flat_tile_post(request: Request):
         y_tile_data = []
 
         for frame in range(frame_start, frame_end):
-            x_sliced = x_measurements[frame, index_start:index_end]
-            y_sliced = y_measurements[frame, index_start:index_end]
+            transformedX = process_frame(scale_type, interval_type, x_measurements[frame])
+            transformedY = process_frame(scale_type, interval_type, y_measurements[frame])
+            x_sliced = transformedX[index_start:index_end]
+            y_sliced = transformedY[index_start:index_end]
+
             x_tile_data.append(x_sliced.tolist())
             y_tile_data.append(y_sliced.tolist())
 
@@ -111,8 +110,8 @@ async def get_flat_tile_post(request: Request):
         gc.collect()
 
         return JSONResponse({
-            "x_tile": x_tile_data,
-            "y_tile": y_tile_data
+            "tileX": x_tile_data,
+            "tileY": y_tile_data
         })
     except Exception as e:
         print(f"Tile fetch error: {e}")
@@ -143,9 +142,11 @@ async def get_slope_meta(request: Request):
         overall_max = float(np.max(measurements))
         num_rows = None
         num_cols = None
+        subaperture_mask = None
         print("subaperture_mask: ", hasattr(sensor, "subaperture_mask"))
         if hasattr(sensor, "subaperture_mask") and sensor.subaperture_mask is not None:
-            mask_shape = sensor.subaperture_mask.data.shape
+            subaperture_mask = sensor.subaperture_mask.data
+            mask_shape = subaperture_mask.shape
             if len(mask_shape) == 2:
                 num_cols, num_rows = mask_shape
         
@@ -159,9 +160,10 @@ async def get_slope_meta(request: Request):
             "overall_max": overall_max
         }
         
-        if num_rows is not None and num_cols is not None:
+        if num_rows is not None and num_cols is not None and subaperture_mask is not None:
             response["num_rows"] = num_rows
             response["num_cols"] = num_cols
+            response["subaperture_mask"] = sensor.subaperture_mask.data.tolist()
 
         return JSONResponse(response)
 
@@ -169,7 +171,7 @@ async def get_slope_meta(request: Request):
         print(f"Meta error: {e}")
         raise HTTPException(status_code=500, detail="Failed to extract metadata")
     
-@router.post("/slope/get-default-slope-charts")
+@router.post("/slope/get-default-stats")
 async def get_default_values(request: Request):
     session = await get_session_from_cookie(request)
     if session is None or session.file_path is None:
@@ -186,15 +188,8 @@ async def get_default_values(request: Request):
 
         del system
         gc.collect()
-    
-        mean_x = np.mean(x, axis=1)
-        mean_y = np.mean(y, axis=1)
-        
-        frame_means_x = [{"x": int(i), "y": float(v)} for i, v in enumerate(mean_x)]
-        frame_means_y = [{"x": int(i), "y": float(v)} for i, v in enumerate(mean_y)]
         
         return JSONResponse({
-            "frame_means": [frame_means_x, frame_means_y],
             "min": [float(np.min(x)), float(np.min(y))],
             "max": [float(np.max(x)), float(np.max(y))],
             "mean": [float(np.mean(x)), float(np.mean(y))],

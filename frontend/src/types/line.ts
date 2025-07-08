@@ -15,6 +15,15 @@ export interface D3LineChartProps {
   config2?: LineConfig
 }
 
+export interface LineChartProps2D {
+  data1X?: DataPoint[]
+  data1Y?: DataPoint[]
+  data2X?: DataPoint[]
+  data2Y?: DataPoint[]
+  config1?: LineConfig
+  config2?: LineConfig
+}
+
 export interface ChartStatistics {
   min: number
   max: number

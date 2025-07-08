@@ -4,8 +4,11 @@ import { useRef, useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import ControlBar from "../controls/control-bar"
-import { useDualInteractions } from "@/hooks/use-dual-interactions"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
+
 import { drawFlatHeatmapFromBuffer } from "@/utils"
+import { fetchTile } from "@/api/slope/fetchTile"
+import { useDualInteractions } from "@/hooks/use-dual-interactions"
 import * as d3 from "d3"
 
 const TILE_SIZE = 256
@@ -13,6 +16,7 @@ const CELL_SIZE = 6
 
 interface FlatHeatmapProps {
   numFrames: number
+  mask?: number[][] // Optional mask for subaperture
   numIndexes: number
   minValue: number
   maxValue: number
@@ -22,6 +26,7 @@ interface FlatHeatmapProps {
 
 export default function DualFlapHeatmap({
   numFrames,
+  mask,
   numIndexes,
   minValue,
   maxValue,
@@ -31,14 +36,43 @@ export default function DualFlapHeatmap({
   const tileCache = useRef(new Map<string, { canvas: HTMLCanvasElement; frameStart: number; indexStart: number }>())
   const interpolator = d3.scaleSequential([minValue, maxValue], d3.interpolateViridis)
   const canvasRefs = useRef<[HTMLCanvasElement | null, HTMLCanvasElement | null]>([null, null])
+  const requestedTiles = useRef(new Set<string>())
   const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, values: [number, number] } | null>(null)
   const [hoveredPoint, setHoveredPoint] = useState<{ frame: number, index: number, values: [number, number] } | null>(null)
   const [showTooltips, setShowTooltips] = useState(true)
   const [showLegend, setShowLegend] = useState(true)
   const [showControlBar, setShowControlBar] = useState(true)
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
   const prevPointRef = useRef<{ frame: number, index: number, values: [number, number] } | null>(null)
   const lastVisibleKeys = useRef<Set<string>>(new Set())
+  const { intervalType, scaleType } = useChartInteraction()
+
+  const pendingTiles = useRef<Set<string>>(new Set())
+
+  const queueVisibleTileFetches = useCallback((tiles: ReturnType<typeof getVisibleTiles>) => {
+    tiles.forEach(tile => {
+      const key = tile.key
+      if (!tileCache.current.has(key) && !requestedTiles.current.has(key)) {
+        pendingTiles.current.add(key)
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const tilesToFetch = Array.from(pendingTiles.current)
+      pendingTiles.current.clear()
+
+      tilesToFetch.forEach((key) => {
+        const [frameRange, indexRange] = key.split(":")
+        const [frameStart, frameEnd] = frameRange.split("-").map(Number)
+        const [indexStart, indexEnd] = indexRange.split("-").map(Number)
+
+        fetchAndRenderTile(frameStart, frameEnd, indexStart, indexEnd)
+      })
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [])
 
   const getVisibleTiles = (
     offset: { x: number; y: number },
@@ -79,79 +113,72 @@ export default function DualFlapHeatmap({
     const keyY = `${frameStart}-${frameEnd}:${indexStart}-${indexEnd}:Y`
     if (tileCache.current.has(keyX) || tileCache.current.has(keyY)) return
 
-    const form = new FormData()
-    form.append("frame_start", frameStart.toString())
-    form.append("frame_end", frameEnd.toString())
-    form.append("index_start", indexStart.toString())
-    form.append("index_end", indexEnd.toString())
-    form.append("wfs_index", "0")
+    requestedTiles.current.add(keyX)
+    requestedTiles.current.add(keyY)
 
-    const res = await fetch("http://localhost:8000/slope/flat-tile", {
-      method: "POST",
-      body: form,
-      credentials: "include"
-    })
+    try {
+      const json = await fetchTile({
+        frameStart,
+        frameEnd,
+        indexStart,
+        indexEnd,
+        wfsIndex: 0,
+        scaleType: scaleType,
+        intervalType: intervalType
+      })
 
-    const json = await res.json()
-    const tileDataX = json.x_tile
-    const tileDataY = json.y_tile
+      const tileDataX = json.tileX
+      const tileDataY = json.tileY
 
-    const canvasX = document.createElement("canvas")
-    const canvasY = document.createElement("canvas")
-    canvasX.width = tileDataX.length * CELL_SIZE
-    canvasX.height = tileDataX[0].length * CELL_SIZE
-    canvasY.width = tileDataY.length * CELL_SIZE
-    canvasY.height = tileDataY[1].length * CELL_SIZE
-    const ctxX = canvasX.getContext("2d")!
-    const ctxY = canvasY.getContext("2d")!
+      const canvasX = document.createElement("canvas")
+      const canvasY = document.createElement("canvas")
+      canvasX.width = tileDataX.length * CELL_SIZE
+      canvasX.height = tileDataX[0].length * CELL_SIZE
+      canvasY.width = tileDataY.length * CELL_SIZE
+      canvasY.height = tileDataY[1].length * CELL_SIZE
+      const ctxX = canvasX.getContext("2d")!
+      const ctxY = canvasX.getContext("2d")!
 
-    for (let i = 0; i < tileDataX.length; i++) {
-      for (let j = 0; j < tileDataX[i].length; j++) {
-        ctxX.fillStyle = interpolator(tileDataX[i][j])
-        ctxX.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+      for (let i = 0; i < tileDataX.length; i++) {
+        for (let j = 0; j < tileDataX[i].length; j++) {
+          ctxX.fillStyle = interpolator(tileDataX[i][j])
+          ctxX.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
 
-        ctxY.fillStyle = interpolator(tileDataY[i][j])
-        ctxY.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+          ctxY.fillStyle = interpolator(tileDataY[i][j])
+          ctxY.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+        }
       }
+
+      tileCache.current.set(keyX, { canvas: canvasX, frameStart, indexStart })
+      tileCache.current.set(keyY, { canvas: canvasY, frameStart, indexStart })
+      requestDraw()
+    } finally {
+      requestedTiles.current.delete(keyX)
+      requestedTiles.current.delete(keyY)
     }
-
-    tileCache.current.set(keyX, { canvas: canvasX, frameStart, indexStart })
-    tileCache.current.set(keyY, { canvas: canvasY, frameStart, indexStart })
-
   }
 
   const draw = useCallback((canvas: HTMLCanvasElement, offset: { x: number; y: number }, zoom: number) => {
     const index = canvasRefs.current.indexOf(canvas)
     if (index === -1) return
     let slope = ""
-    if (index === 0) {
-      slope = ":X"
-
-    }
-    else {
-      slope = ":Y"
-    }
+    if (index === 0) slope = ":X"
+    else slope = ":Y"
 
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
     const visible = getVisibleTiles(offset, zoom, canvas.width, canvas.height)
     const visibleKeys = new Set(visible.map(t => t.key))
-    const currentVisibleKeys = new Set(visibleKeys)
-    if (visibleKeys.size > 0) {
-      lastVisibleKeys.current = currentVisibleKeys
-    }
+    lastVisibleKeys.current = visibleKeys
+
     const buffers = visible
       .map(({ key }) => tileCache.current.get(key + slope))
       .filter(Boolean) as { canvas: HTMLCanvasElement; frameStart: number; indexStart: number }[]
+
     drawFlatHeatmapFromBuffer(ctx, offset, zoom, buffers, CELL_SIZE, numFrames, numIndexes, selectedPoint || undefined)
 
-    if (debounceTimeout.current) clearTimeout(debounceTimeout.current)
-    debounceTimeout.current = setTimeout(() => {
-      visible.forEach(tile => {
-        fetchAndRenderTile(tile.frameStart, tile.frameEnd, tile.indexStart, tile.indexEnd)
-      })
-    }, 150)
+    queueVisibleTileFetches(visible)
 
     for (const key of tileCache.current.keys()) {
       if (!lastVisibleKeys.current.has(key + slope)) {
@@ -169,11 +196,25 @@ export default function DualFlapHeatmap({
     if (selectedCell === null) {
       setSelectedPoint(null)
     } else {
-      setSelectedPoint({
-        frame: selectedCell.frame,
-        index: selectedCell.col * 2 + selectedCell.row, //!!!!!!!!!!!!!!!!!!!!!! missing the number of rows
-        values: selectedCell.values
-      })
+      if (mask) {
+        const { col, row } = selectedCell
+
+        const index = mask[row]?.[col]
+        if (index === undefined || index === -1) {
+          console.warn("Invalid mask lookup at", row, col)
+          setSelectedPoint(null)
+          return
+        }
+
+        setSelectedPoint({
+          frame: selectedCell.frame,
+          index: index,
+          values: selectedCell.values
+        })
+      } else {
+        console.warn("No mask available in meta")
+        setSelectedPoint(null)
+      }
     }
 
   }, [selectedCell])
@@ -252,8 +293,8 @@ export default function DualFlapHeatmap({
     const pixelX = tileCtxX.getImageData(j * CELL_SIZE, i * CELL_SIZE, 1, 1).data
     const pixelY = tileCtxY.getImageData(j * CELL_SIZE, i * CELL_SIZE, 1, 1).data
 
-    const grayX = pixelX[0] / 255 // !!!!
-    const grayY = pixelY[1] / 255 // !!!!
+    const grayX = pixelX[0]
+    const grayY = pixelY[1]
     return [grayX, grayY]
   }
 
@@ -319,13 +360,13 @@ export default function DualFlapHeatmap({
           </div>
           {hoveredPoint && showTooltips && (
             <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none">
-              Point ({hoveredPoint.frame}, {hoveredPoint.index}): Slope X: {hoveredPoint.values[0]}, Slope Y: {hoveredPoint.values[1]}
+              Point ({hoveredPoint.frame}, {hoveredPoint.index}): Slope X: {hoveredPoint.values[0].toFixed(2)}, Slope Y: {hoveredPoint.values[1].toFixed(2)}
             </div>
           )}
 
           {showLegend && (
             <div className="absolute top-0 right-0 bg-white border rounded p-2 gap-2 shadow h-full flex flex-col items-center text-xs justify-between">
-              <div>{maxValue}</div>
+              <div>{maxValue.toFixed(2)}</div>
               <div
                 className="w-4 h-full rounded"
                 style={{
@@ -335,7 +376,7 @@ export default function DualFlapHeatmap({
                     20
                   ),
                 }}></div>
-              <div>{minValue}</div>
+              <div>{minValue.toFixed(2)}</div>
             </div>
           )}
         </div>

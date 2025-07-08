@@ -68,7 +68,7 @@ export default function FlapHeatmap({
 
         fetchAndRenderTile(frameStart, frameEnd, indexStart, indexEnd)
       })
-    }, 100) // adjust throttle interval as needed
+    }, 100)
 
     return () => clearInterval(interval)
   }, [])

@@ -1,11 +1,8 @@
-import type { DataPoint } from "@/types/visualization"
-
-export async function fetchDefaultSlopeCharts({
+export async function fetchDefaultSlopeStats({
   wfsIndex
 }: {
   wfsIndex: number
 }): Promise<{
-  frame_means: [DataPoint[], DataPoint[]]
   min: [number, number]
   max: [number, number]
   mean: [number, number]
@@ -16,7 +13,7 @@ export async function fetchDefaultSlopeCharts({
   const formData = new FormData()
   formData.append("wfs_index", wfsIndex.toString())
 
-  const res = await fetch("http://localhost:8000/slope/get-default-slope-charts", {
+  const res = await fetch("http://localhost:8000/slope/get-default-stats", {
     method: "POST",
     body: formData,
     credentials: "include",

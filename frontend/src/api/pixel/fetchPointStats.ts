@@ -30,14 +30,6 @@ export async function fetchPointStats({
   formData.append("interval_type", intervalType)
   formData.append("scale_type", scaleType)
 
-  console.log("Fetching point stats with data:", {
-    wfsIndex,
-    col,
-    row,
-    intervalType,
-    scaleType,
-  })
-
   const res = await fetch("http://localhost:8000/pixel/get-point-stats", {
     method: "POST",
     body: formData,
