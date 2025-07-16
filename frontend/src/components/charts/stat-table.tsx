@@ -36,9 +36,9 @@ export default function StatTable({ data, selectedPoint }: StatTableProps) {
         {stats.map((stat) => (
           <TableRow key={stat.label}>
             <TableCell className="font-medium">{stat.label}</TableCell>
-            <TableCell>{stat.globalValue.toFixed(0)}</TableCell>
+            <TableCell>{stat.globalValue.toFixed(3)}</TableCell>
             {selectedPoint && (
-              <TableCell>{stat.selectedValue?.toFixed(0)}</TableCell>
+              <TableCell>{stat.selectedValue?.toFixed(3)}</TableCell>
             )}
           </TableRow>
         ))}

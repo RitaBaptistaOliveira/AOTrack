@@ -83,7 +83,7 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
             .style("font-size", "10px")
             .style("fill", color)
             .style("font-weight", isBold ? "bold" : "normal")
-            .text(`${label}: ${value.toFixed(1)}`)
+            .text(`${label}: ${value.toFixed(3)}`)
     }
 
     const findClosestPoint = (
@@ -355,7 +355,7 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
                         const point = findClosestPoint(dataset.data, x0, bisectX)
                         if (point) {
                             dotsData.push({ x: point.x, y: point.y, color: dataset.color, line: dataset.name })
-                            tooltipContent += `<div style="margin-bottom: 12px;"><strong style="color: ${dataset.color};">${dataset.name}</strong><br/>Frame: ${point.x} Intensity: ${point.y.toFixed(2)}</div>`
+                            tooltipContent += `<div style="margin-bottom: 12px;"><strong style="color: ${dataset.color};">${dataset.name}</strong><br/>Frame: ${point.x} Intensity: ${point.y.toFixed(3)}</div>`
                         }
                     })
 

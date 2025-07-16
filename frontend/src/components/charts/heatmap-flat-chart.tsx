@@ -6,7 +6,7 @@ import { ChevronUp, ChevronDown } from "lucide-react"
 import ControlBar from "../controls/control-bar"
 import { useInteractions } from "@/hooks/use-interactions"
 import { drawFlatHeatmapFromBuffer } from "@/utils"
-import { fetchTile } from "@/api/pixel/fetchTile"
+import { fetchTile } from "@/api/command/fetchTile"
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import * as d3 from "d3"
 
@@ -32,7 +32,7 @@ export default function FlapHeatmap({
   onPointSelect,
   selectedCell
 }: FlatHeatmapProps) {
-  const tileCache = useRef(new Map<string, { canvas: HTMLCanvasElement; frameStart: number; indexStart: number }>())
+  const tileCache = useRef(new Map<string, { canvas: HTMLCanvasElement; frameStart: number; indexStart: number; tileData: number[][] }>())
   const interpolator = d3.scaleSequential([minValue, maxValue], d3.interpolateViridis)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const requestedTiles = useRef(new Set<string>())
@@ -118,12 +118,13 @@ export default function FlapHeatmap({
         frameEnd,
         indexStart,
         indexEnd,
-        wfsIndex: 0,
+        loopIndex: 0,
         scaleType: scaleType,
         intervalType: intervalType
       })
       const tileData = json.tile
-
+      console.log(`Fetched tile ${key} with size ${tileData.length}x${tileData[0].length}`)
+      console.log(`Tile data:`, tileData)
       const canvas = document.createElement("canvas")
       canvas.width = tileData.length * CELL_SIZE
       canvas.height = tileData[0].length * CELL_SIZE
@@ -136,7 +137,7 @@ export default function FlapHeatmap({
         }
       }
 
-      tileCache.current.set(key, { canvas, frameStart, indexStart })
+      tileCache.current.set(key, { canvas, frameStart, indexStart, tileData })
 
       requestDraw()
     } finally {
@@ -216,8 +217,8 @@ export default function FlapHeatmap({
   function generateColorGradient(min = 0, max = 1, steps = 20) {
     const colorStops = Array.from({ length: steps }, (_, i) => {
       const value = min + ((max - min) * i) / (steps - 1)
-      const t = (value - min) / (max - min)
-      return `${interpolator(t)} ${t * 100}%`
+      const percentage = (i / (steps - 1)) * 100
+      return `${interpolator(value)} ${percentage}%`
     })
     return `linear-gradient(to top, ${colorStops.join(', ')})`
   }
@@ -235,7 +236,7 @@ export default function FlapHeatmap({
     const frame = Math.floor(x / CELL_SIZE)
     const index = Math.floor(y / CELL_SIZE)
 
-    if (frame < 0 || index < 0) return null
+    if (frame < 0 || index < 0 || frame >= numFrames || index >= numIndexes) return null
 
     return { frame, index }
   }, [zoomRef, offsetRef, canvasRef])
@@ -245,19 +246,18 @@ export default function FlapHeatmap({
     const indexTile = Math.floor(index / TILE_SIZE) * TILE_SIZE
     const key = `${frameTile}-${frameTile + TILE_SIZE}:${indexTile}-${indexTile + TILE_SIZE}`
     const tile = tileCache.current.get(key)
+
     if (!tile) return undefined
 
     const i = frame - frameTile
     const j = index - indexTile
-    const tileCanvas = tile.canvas
+    console.log(`Fetching value from tile cache for key: ${key}, frame: ${frame}, index: ${index}`)
+    console.log(`i: ${i}, j: ${j}`)
+    const value = tile.tileData[i][j]
+    console.log(`Tile data for key ${key}:`, tile.tileData)
+    console.log(`Value from tile cache: ${value}`)
 
-    const tileCtx = tileCanvas.getContext("2d", { willReadFrequently: true })
-    if (!tileCtx) return undefined
-
-    const pixel = tileCtx.getImageData(j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE).data
-
-    const gray = pixel[0]
-    return gray
+    return value !== undefined ? value : undefined
   }
 
   useEffect(() => {
@@ -265,7 +265,7 @@ export default function FlapHeatmap({
       const point = getPointFromCoordinates(hoverPos.x, hoverPos.y)
       if (point) {
         const value = getValueFromTileCache(point.frame, point.index)
-        if (value !== undefined) {
+        if (value !== undefined && value !== null) {
           setHoveredPoint({ ...point, value })
         }
       } else {
@@ -317,13 +317,13 @@ export default function FlapHeatmap({
           />
           {hoveredPoint && showTooltips && (
             <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none">
-              Point ({hoveredPoint.frame}, {hoveredPoint.index}): {hoveredPoint.value}
+              Point ({hoveredPoint.frame}, {hoveredPoint.index}): {hoveredPoint.value.toFixed(2)}
             </div>
           )}
 
           {showLegend && (
             <div className="absolute top-0 right-0 bg-white border rounded p-2 gap-2 shadow h-full flex flex-col items-center text-xs justify-between">
-              <div>{maxValue}</div>
+              <div>{maxValue.toFixed(2)}</div>
               <div
                 className="w-4 h-full rounded"
                 style={{
@@ -333,7 +333,7 @@ export default function FlapHeatmap({
                     20
                   ),
                 }}></div>
-              <div>{minValue}</div>
+              <div>{minValue.toFixed(2)}</div>
             </div>
           )}
         </div>

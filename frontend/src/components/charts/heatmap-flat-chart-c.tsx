@@ -4,11 +4,10 @@ import { useRef, useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import ControlBar from "../controls/control-bar"
-import { useChartInteraction } from "@/contexts/chart-interactions-context"
-
+import { useInteractions } from "@/hooks/use-interactions"
 import { drawFlatHeatmapFromBuffer } from "@/utils"
-import { fetchTile } from "@/api/slope/fetchTile"
-import { useDualInteractions } from "@/hooks/use-dual-interactions"
+import { fetchTile } from "@/api/pixel/fetchTile"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import * as d3 from "d3"
 
 const TILE_SIZE = 256
@@ -16,33 +15,33 @@ const CELL_SIZE = 6
 
 interface FlatHeatmapProps {
   numFrames: number
-  mask?: number[][] // Optional mask for subaperture
+  numRows: number
   numIndexes: number
   minValue: number
   maxValue: number
-  onPointSelect: (point: { frame: number; x: number; y: number | undefined; values: [number, number] } | null) => void
-  selectedCell: { frame: number, col: number, row: number, values: [number, number] } | null
+  onPointSelect: (point: { frame: number; x: number; y: number | undefined; value: number; } | null) => void
+  selectedCell: { frame: number, col: number, row: number, value: number } | null
 }
 
-export default function DualFlapHeatmap({
+export default function FlapHeatmap({
   numFrames,
-  mask,
+  numRows,
   numIndexes,
   minValue,
   maxValue,
   onPointSelect,
   selectedCell
 }: FlatHeatmapProps) {
-  const tileCache = useRef(new Map<string, { canvas: HTMLCanvasElement; frameStart: number; indexStart: number, tileData: number[][] }>())
+  const tileCache = useRef(new Map<string, { canvas: HTMLCanvasElement; frameStart: number; indexStart: number; tileData: number[][] }>())
   const interpolator = d3.scaleSequential([minValue, maxValue], d3.interpolateViridis)
-  const canvasRefs = useRef<[HTMLCanvasElement | null, HTMLCanvasElement | null]>([null, null])
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const requestedTiles = useRef(new Set<string>())
-  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, values: [number, number] } | null>(null)
-  const [hoveredPoint, setHoveredPoint] = useState<{ frame: number, index: number, values: [number, number] } | null>(null)
+  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
+  const [hoveredPoint, setHoveredPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
   const [showTooltips, setShowTooltips] = useState(true)
   const [showLegend, setShowLegend] = useState(true)
   const [showControlBar, setShowControlBar] = useState(true)
-  const prevPointRef = useRef<{ frame: number, index: number, values: [number, number] } | null>(null)
+  const prevPointRef = useRef<{ frame: number, index: number, value: number } | null>(null)
   const lastVisibleKeys = useRef<Set<string>>(new Set())
   const { intervalType, scaleType } = useChartInteraction()
 
@@ -109,12 +108,9 @@ export default function DualFlapHeatmap({
   }
 
   const fetchAndRenderTile = async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
-    const keyX = `${frameStart}-${frameEnd}:${indexStart}-${indexEnd}:X`
-    const keyY = `${frameStart}-${frameEnd}:${indexStart}-${indexEnd}:Y`
-    if (tileCache.current.has(keyX) || tileCache.current.has(keyY)) return
-
-    requestedTiles.current.add(keyX)
-    requestedTiles.current.add(keyY)
+    const key = `${frameStart}-${frameEnd}:${indexStart}-${indexEnd}`
+    if (tileCache.current.has(key)) return
+    requestedTiles.current.add(key)
 
     try {
       const json = await fetchTile({
@@ -126,64 +122,50 @@ export default function DualFlapHeatmap({
         scaleType: scaleType,
         intervalType: intervalType
       })
+      const tileData = json.tile
+      console.log(`Fetched tile ${key} with size ${tileData.length}x${tileData[0].length}`)
+      console.log(`Tile data:`, tileData)
+      const canvas = document.createElement("canvas")
+      canvas.width = tileData.length * CELL_SIZE
+      canvas.height = tileData[0].length * CELL_SIZE
+      const ctx = canvas.getContext("2d")!
 
-      const tileDataX = json.tileX
-      const tileDataY = json.tileY
-
-      const canvasX = document.createElement("canvas")
-      const canvasY = document.createElement("canvas")
-      canvasX.width = tileDataX.length * CELL_SIZE
-      canvasX.height = tileDataX[0].length * CELL_SIZE
-      canvasY.width = tileDataY.length * CELL_SIZE
-      canvasY.height = tileDataY[1].length * CELL_SIZE
-      const ctxX = canvasX.getContext("2d")!
-      const ctxY = canvasY.getContext("2d")!
-
-      for (let i = 0; i < tileDataX.length; i++) {
-        for (let j = 0; j < tileDataX[i].length; j++) {
-          ctxX.fillStyle = interpolator(tileDataX[i][j])
-          ctxX.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-
-          ctxY.fillStyle = interpolator(tileDataY[i][j])
-          ctxY.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+      for (let i = 0; i < tileData.length; i++) {
+        for (let j = 0; j < tileData[i].length; j++) {
+          ctx.fillStyle = interpolator(tileData[i][j])
+          ctx.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
         }
       }
 
-      tileCache.current.set(keyX, { canvas: canvasX, frameStart, indexStart, tileData: tileDataX })
-      tileCache.current.set(keyY, { canvas: canvasY, frameStart, indexStart, tileData: tileDataY })
+      tileCache.current.set(key, { canvas, frameStart, indexStart, tileData })
+
       requestDraw()
     } finally {
-      requestedTiles.current.delete(keyX)
-      requestedTiles.current.delete(keyY)
+      requestedTiles.current.delete(key)
     }
+
   }
 
-  const draw = useCallback((canvasX: HTMLCanvasElement, canvasY: HTMLCanvasElement, offset: { x: number; y: number }, zoom: number) => {
-  
-    const ctxX = canvasX.getContext("2d")
-    const ctxY = canvasY.getContext("2d")
-    if (!ctxX || !ctxY) return
+  const draw = useCallback((canvas: HTMLCanvasElement, offset: { x: number; y: number }, zoom: number) => {
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
 
-    const visible = getVisibleTiles(offset, zoom, canvasX.width, canvasX.height)
+    const visible = getVisibleTiles(offset, zoom, canvas.width, canvas.height)
     const visibleKeys = new Set(visible.map(t => t.key))
+
     lastVisibleKeys.current = visibleKeys
 
-    const buffersX = visible
-      .map(({ key }) => tileCache.current.get(key + ":X"))
-      .filter(Boolean) as { canvas: HTMLCanvasElement; frameStart: number; indexStart: number }[]
-    const buffersY = visible
-      .map(({ key }) => tileCache.current.get(key + ":Y"))
+    const buffers = visible
+      .map(({ key }) => tileCache.current.get(key))
       .filter(Boolean) as { canvas: HTMLCanvasElement; frameStart: number; indexStart: number }[]
 
-    drawFlatHeatmapFromBuffer(ctxX, offset, zoom, buffersX, CELL_SIZE, numFrames, numIndexes, selectedPoint || undefined)
-    drawFlatHeatmapFromBuffer(ctxY, offset, zoom, buffersY, CELL_SIZE, numFrames, numIndexes, selectedPoint || undefined)
+    drawFlatHeatmapFromBuffer(ctx, offset, zoom, buffers, CELL_SIZE, numFrames, numIndexes, selectedPoint || undefined)
 
     queueVisibleTileFetches(visible)
 
     for (const key of tileCache.current.keys()) {
       if (!lastVisibleKeys.current.has(key)) {
-        tileCache.current.delete(key + ":X")
-        tileCache.current.delete(key + ":Y")
+        tileCache.current.delete(key)
       }
     }
   }, [selectedPoint])
@@ -191,31 +173,17 @@ export default function DualFlapHeatmap({
   const {
     mode, setMode, clickPosition, hoverPos, offsetRef, zoomRef, zoomIn, zoomOut, resetZoom, handleMouseDown,
     handleMouseLeave, handleMouseMove, handleMouseUp, handleMouseWheel, handleKeyDown, downloadPNG, requestDraw }
-    = useDualInteractions({ externalCanvasRef: canvasRefs, draw })
+    = useInteractions({ externalCanvasRef: canvasRef, draw })
 
   useEffect(() => {
     if (selectedCell === null) {
       setSelectedPoint(null)
     } else {
-      if (mask) {
-        const { col, row } = selectedCell
-
-        const index = mask[col]?.[row]
-        if (index === undefined || index === -1) {
-          console.warn("Invalid mask lookup at", col, row)
-          setSelectedPoint(null)
-          return
-        }
-
-        setSelectedPoint({
-          frame: selectedCell.frame,
-          index: index,
-          values: selectedCell.values
-        })
-      } else {
-        console.warn("No mask available in meta")
-        setSelectedPoint(null)
-      }
+      setSelectedPoint({
+        frame: selectedCell.frame,
+        index: selectedCell.col * numRows + selectedCell.row,
+        value: selectedCell.value
+      })
     }
 
   }, [selectedCell])
@@ -226,10 +194,10 @@ export default function DualFlapHeatmap({
       const prev = prevPointRef.current
       if (point) {
         if (prev === null || (point.frame !== prev.frame && point.index !== prev.index)) {
-          const values = getValueFromTileCache(point.frame, point.index)
-          if (values !== undefined && (prev === null || values !== prev.values)) {
-            setSelectedPoint({ ...point, values })
-            onPointSelect({ frame: point.frame, x: point.index, y: undefined, values: values })
+          const value = getValueFromTileCache(point.frame, point.index)
+          if (value !== undefined && (prev === null || value !== prev.value)) {
+            setSelectedPoint({ ...point, value })
+            onPointSelect({ frame: point.frame, x: point.index, y: undefined, value: value })
           }
         }
       } else {
@@ -256,7 +224,7 @@ export default function DualFlapHeatmap({
   }
 
   const getPointFromCoordinates = useCallback((canvasX: number, canvasY: number) => {
-    const canvas = canvasRefs.current[1]
+    const canvas = canvasRef.current
     if (!canvas) return null
 
     const zoomLevel = zoomRef.current
@@ -271,31 +239,30 @@ export default function DualFlapHeatmap({
     if (frame < 0 || index < 0 || frame >= numFrames || index >= numIndexes) return null
 
     return { frame, index }
-  }, [zoomRef, offsetRef, canvasRefs])
+  }, [zoomRef, offsetRef, canvasRef])
 
-  function getValueFromTileCache(frame: number, index: number): [number, number] | undefined {
+  function getValueFromTileCache(frame: number, index: number): number | undefined {
     const frameTile = Math.floor(frame / TILE_SIZE) * TILE_SIZE
     const indexTile = Math.floor(index / TILE_SIZE) * TILE_SIZE
-    const keyX = `${frameTile}-${frameTile + TILE_SIZE}:${indexTile}-${indexTile + TILE_SIZE}:X`
-    const keyY = `${frameTile}-${frameTile + TILE_SIZE}:${indexTile}-${indexTile + TILE_SIZE}:Y`
-    const tileX = tileCache.current.get(keyX)
-    const tileY = tileCache.current.get(keyY)
-    if (!tileX || !tileY) return undefined
+    const key = `${frameTile}-${frameTile + TILE_SIZE}:${indexTile}-${indexTile + TILE_SIZE}`
+    const tile = tileCache.current.get(key)
+
+    if (!tile) return undefined
 
     const i = frame - frameTile
     const j = index - indexTile
-    const valueX = tileX.tileData[i][j]
-    const valueY = tileY.tileData[i][j]
-    return [valueX, valueY]
+    const value = tile.tileData[i][j]
+
+    return value !== undefined ? value : undefined
   }
 
   useEffect(() => {
     if (hoverPos && showTooltips) {
       const point = getPointFromCoordinates(hoverPos.x, hoverPos.y)
       if (point) {
-        const values = getValueFromTileCache(point.frame, point.index)
-        if (values !== undefined) {
-          setHoveredPoint({ ...point, values })
+        const value = getValueFromTileCache(point.frame, point.index)
+        if (value !== undefined) {
+          setHoveredPoint({ ...point, value })
         }
       } else {
         setHoveredPoint(null)
@@ -333,31 +300,26 @@ export default function DualFlapHeatmap({
       {/* Canvas Container */}
       <div className="flex-1 relative min-h-0">
         <div className="w-full h-full border-2 border-gray-300 relative">
-          <div className="flex flex-row h-full gap-2 border-2 border-gray-300 relative">
-            {canvasRefs.current.map((_, idx) => (
-              <canvas
-                key={idx}
-                ref={(el) => { canvasRefs.current[idx] = el }}
-                tabIndex={0}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseLeave}
-                onWheel={handleMouseWheel}
-                onKeyDown={handleKeyDown}
-                className={`flex-1 ${mode === "pan" ? "cursor-move" : "cursor-crosshair"}`}
-              />
-            ))}
-          </div>
+          <canvas
+            ref={canvasRef}
+            tabIndex={0}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            onWheel={handleMouseWheel}
+            onKeyDown={handleKeyDown}
+            className={`w-full h-full ${mode === "pan" ? "cursor-move" : "cursor-crosshair"}`}
+          />
           {hoveredPoint && showTooltips && (
             <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none">
-              Point ({hoveredPoint.frame}, {hoveredPoint.index}): Slope X: {hoveredPoint.values[0].toFixed(2)}, Slope Y: {hoveredPoint.values[1].toFixed(2)}
+              Point ({hoveredPoint.frame}, {hoveredPoint.index}): {hoveredPoint.value}
             </div>
           )}
 
           {showLegend && (
             <div className="absolute top-0 right-0 bg-white border rounded p-2 gap-2 shadow h-full flex flex-col items-center text-xs justify-between">
-              <div>{maxValue.toFixed(2)}</div>
+              <div>{maxValue}</div>
               <div
                 className="w-4 h-full rounded"
                 style={{
@@ -367,7 +329,7 @@ export default function DualFlapHeatmap({
                     20
                   ),
                 }}></div>
-              <div>{minValue.toFixed(2)}</div>
+              <div>{minValue}</div>
             </div>
           )}
         </div>

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useFrameBuffer } from "@/hooks/use-frame-buffer"
 import Visualization from '@/components/charts/heatmap-chart'
-import FlapHeatmap from '@/components/charts/heatmap-flat-chart'
+import FlapHeatmap from '@/components/charts/heatmap-flat-chart-c'
 import D3LineChart from '@/components/charts/line-chart'
 import Histogram from '@/components/charts/hist-chart'
 import StatTable from '@/components/charts/stat-table'
@@ -85,6 +85,8 @@ export default function Pixels() {
 
   useEffect(() => {
     frameBuffer.preloadAround(currentFrame, 5)
+    console.log(`Preloading frames around ${currentFrame} with scaleType: ${scaleType}, intervalType: ${intervalType}`)
+    console.log("Current frame data:", currentFrameData)
   }, [currentFrame, scaleType, intervalType])
 
   return (

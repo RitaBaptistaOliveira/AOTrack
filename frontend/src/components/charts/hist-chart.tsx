@@ -242,13 +242,11 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
               .attr("x", initialXScale(config.value))
               .attr("y", 15 + index * 15)
               .attr("text-anchor", "middle")
-              .style("font-size", "10px")
-              .style("fill", "white")
+              .style("font-size", "12px")
+              .style("fill", dataset.color)
               .style("font-weight", "bold")
-              .style("stroke", dataset.color)
               .style("stroke-width", "2px")
-              .style("paint-order", "stroke fill")
-              .text(`${config.label}: ${config.value.toFixed(1)}`)
+              .text(`${config.label}: ${config.value.toFixed(3)}`)
           })
         }
       })
@@ -498,7 +496,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
           highlightBars(d)
 
           // Build tooltip content for datasets with data in this bin range
-          let tooltipContent = `<div style="margin-bottom: 8px;"><strong>Range: ${d.x0.toFixed(1)} - ${d.x1.toFixed(1)}</strong></div>`
+          let tooltipContent = `<div style="margin-bottom: 8px;"><strong>Range: ${d.x0.toFixed(3)} - ${d.x1.toFixed(3)}</strong></div>`
 
           datasetsWithData.forEach(({ dataset, bin }) => {
             tooltipContent += `<div style="margin-bottom: 6px;"><strong style="color: ${dataset.color};">${dataset.name}</strong><br/>Count: ${bin.length}</div>`

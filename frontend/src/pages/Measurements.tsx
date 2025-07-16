@@ -40,13 +40,15 @@ export default function Measurements() {
       const mask = meta.subapertureMask
       const numRows = meta.numRows || 1
       const numCols = meta.numCols || 1
+      console.log("Selected:", selected)
       if (mask) {
         if (typeof selected.y === 'number') {
           const col = selected.x
           const row = selected.y
           const index = mask[col]?.[row]
+          console.log("IF: Selected cell at col:", col, "row:", row, "index:", index)
           if (index === undefined || index === -1) {
-            console.warn("Invalid mask access at", row, col)
+            console.warn("Invalid mask access at", col, row)
             return
           }
           setCurrentFrame(selected.frame)
@@ -63,6 +65,7 @@ export default function Measurements() {
           for (let r = 0; r < numRows; r++) {
             for (let c = 0; c < numCols; c++) {
               if (mask[c][r] === selected.x) {
+                console.log("ELSE: Selected cell at col:", c, "row:", r, "index:", selected.x)
                 setCurrentFrame(selected.frame)
                 setSelectedCell({ frame: selected.frame, col: c, row: r, values: selected.values })
                 setSelectedPoint({ frame: selected.frame, index: selected.x, values: selected.values })
@@ -102,6 +105,8 @@ export default function Measurements() {
 
   useEffect(() => {
     frameBuffer.preloadAround(currentFrame, 2)
+
+    console
 
   }, [currentFrame, scaleType, intervalType])
 

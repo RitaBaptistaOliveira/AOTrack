@@ -88,15 +88,24 @@ export default function DualHeatmap({
   } = useDualInteractions({
     externalCanvasRef: canvasRefs,
 
-    draw: (canvas, offset, zoom) => {
-      const index = canvasRefs.current.indexOf(canvas)
-      if (index === -1) return
-      const frameData = data[index]
+    draw: (canvasX, canvasY, offset, zoom) => {
+      const frameDataX = data[0]
+      const frameDataY = data[1]
       drawHeatmap(
-        canvas,
+        canvasX,
         offset,
         zoom,
-        frameData,
+        frameDataX,
+        numRows,
+        numCols,
+        selectedCell,
+        interpolator.current
+      )
+      drawHeatmap(
+        canvasY,
+        offset,
+        zoom,
+        frameDataY,
         numRows,
         numCols,
         selectedCell,
@@ -119,6 +128,7 @@ export default function DualHeatmap({
         const valueX = data[0][selectedCell.x]?.[selectedCell.y]
         const valueY = data[1][selectedCell.x]?.[selectedCell.y]
         if (valueX !== undefined && valueY !== undefined) {
+          console.log("Updating selected cell values:", valueX, valueY)
           setSelectedCell({ x: selectedCell.x, y: selectedCell.y, values: [valueX, valueY] })
         }
       }
@@ -136,7 +146,7 @@ export default function DualHeatmap({
       let found = false
       for (let r = 0; r < numRows; r++) {
         for (let c = 0; c < numCols; c++) {
-          if (mask[r][c] === idx) {
+          if (mask[c][r] === idx) {
             setSelectedCell({ x: c, y: r, values: selectedPoint.values })
             found = true
             break
@@ -149,17 +159,13 @@ export default function DualHeatmap({
         console.warn("Index not found in mask:", idx)
         setSelectedCell(null)
       }
-
-
+      console.log("Setting selected cell from point:", selectedPoint)
     }
   }, [selectedPoint])
 
   // Notify parent of cell selection only when selection actually changes
   useEffect(() => {
-
-    const cellChanged =
-      selectedCell?.x !== prevSelectedCellRef.current?.x || selectedCell?.y !== prevSelectedCellRef.current?.y || selectedCell?.values !== prevSelectedCellRef.current?.values
-
+    const cellChanged = selectedCell?.x !== prevSelectedCellRef.current?.x || selectedCell?.y !== prevSelectedCellRef.current?.y || selectedCell?.values !== prevSelectedCellRef.current?.values
     if (cellChanged) {
       prevSelectedCellRef.current = selectedCell
       if (selectedCell) {
@@ -188,9 +194,9 @@ export default function DualHeatmap({
   }
 
   const getCellFromCoordinates = useCallback(
-    (canvas: HTMLCanvasElement, canvasX: number, canvasY: number) => {
+    (canvasX: number, canvasY: number) => {
+      const canvas = canvasRefs.current[0]
       if (!canvas) return
-      if (canvas.width === 0 || canvas.height === 0) return null
 
       const squareSize = Math.min(canvas.width, canvas.height)
       const offsetX = (canvas.width - squareSize) / 2
@@ -216,15 +222,14 @@ export default function DualHeatmap({
   // If the clicked position changes, so does the selected cell
   useEffect(() => {
     if (clickPosition) {
-      const canvas = canvasRefs.current[0]
-      if (canvas === null) return
-      const cell = getCellFromCoordinates(canvas, clickPosition.x, clickPosition.y)
+      const cell = getCellFromCoordinates(clickPosition.x, clickPosition.y)
       if (cell) {
         const values: [number, number] = [
           data[0][cell.x]?.[cell.y],
           data[1][cell.x]?.[cell.y]
         ]
         if (values !== undefined && values[0] !== undefined && values[1] !== undefined && values[0] !== null && values[1] !== null) {
+          console.log("Setting selected cell:", cell)
           setSelectedCell({ ...cell, values })
         }
       } else {
@@ -235,9 +240,7 @@ export default function DualHeatmap({
 
   useEffect(() => {
     if (hoverPos && showTooltips) {
-      const canvas = canvasRefs.current[0]
-      if (canvas === null) return
-      const cell = getCellFromCoordinates(canvas, hoverPos.x, hoverPos.y)
+      const cell = getCellFromCoordinates(hoverPos.x, hoverPos.y)
       if (cell) {
         const values: [number, number] = [
           data[0][cell.x]?.[cell.y],

@@ -143,7 +143,6 @@ async def get_slope_meta(request: Request):
         num_rows = None
         num_cols = None
         subaperture_mask = None
-        print("subaperture_mask: ", hasattr(sensor, "subaperture_mask"))
         if hasattr(sensor, "subaperture_mask") and sensor.subaperture_mask is not None:
             subaperture_mask = sensor.subaperture_mask.data
             mask_shape = subaperture_mask.shape
@@ -242,55 +241,3 @@ async def get_slope_point_stats(request: Request):
     except Exception as e:
         print(f"Exception occurred: {e}")
         raise HTTPException(status_code=500, detail=f"Point stats error: {e}")
-
-
-@router.post("/slope/get-histogram")
-async def get_slope_histogram(request: Request):
-    session = await get_session_from_cookie(request)
-    if session is None or session.file_path is None:
-        raise HTTPException(status_code=400, detail="No active session or file path")
-
-    form = await request.form()
-    wfs_index = int(form.get("wfs_index", 0))
-    num_bins = int(form.get("num_bins", 30))
-
-    index = form.get("index")
-    point_selected = index is not None
-    if(point_selected):
-        index = int(form.get("index"))
-    
-
-    try:
-        system = aotpy.AOSystem.read_from_file(session.file_path)
-        measurements = system.wavefront_sensors[wfs_index].measurements.data
-        x = np.mean(measurements[:, 0, :], axis=0)
-        y = np.mean(measurements[:, 1, :], axis=0)
-        min = np.min(measurements)
-        max = np.max(measurements)
-        del system
-        gc.collect()
-
-        if point_selected:
-            valuesX = measurements[:, 0, index]
-            valuesY = measurements[:, 1, index]
-            counts_pX, bins_pX = np.histogram(valuesX, bins=num_bins, range=[min, max])
-            counts_pY, bins_pY = np.histogram(valuesY, bins=num_bins, range=[min, max])
-        else:
-            counts_pX = np.ndarray([])
-            counts_pY = np.ndarray([])
-            bins_pX = np.ndarray([])
-            bins_pY = np.ndarray([])
-            
-        counts_x, bins_x = np.histogram(x, bins=num_bins, range=[min, max])
-        counts_y, bins_y = np.histogram(y, bins=num_bins, range=[min, max])
-
-        
-        return JSONResponse({
-            "counts": [counts_x.tolist(),counts_y.tolist()],
-            "bins": [bins_x.tolist(),bins_y.tolist()],
-            "counts1" : [counts_pX.tolist(), counts_pY.tolist()],
-            "bins1" : [bins_pX.tolist(), bins_pY.tolist()]
-        })
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Histogram error: {e}")

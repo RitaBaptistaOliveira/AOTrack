@@ -157,7 +157,7 @@ export default function Visualization({
     const colorStops = Array.from({ length: steps }, (_, i) => {
       const value = min + ((max - min) * i) / (steps - 1)
       const percentage = (i / (steps - 1)) * 100
-      return `${scale(value)} ${percentage}%` // bottom to top
+      return `${scale(value)} ${percentage}%`
     })
     return `linear-gradient(to top, ${colorStops.join(', ')})`
   }
@@ -195,7 +195,7 @@ export default function Visualization({
       const cell = getCellFromCoordinates(clickPosition.x, clickPosition.y)
       if (cell) {
         const value = data[cell.x]?.[cell.y]
-        if (value !== undefined) {
+        if (value !== undefined && value !== null) {
           setSelectedCell({ ...cell, value })
         }
       } else {
@@ -209,7 +209,7 @@ export default function Visualization({
       const cell = getCellFromCoordinates(hoverPos.x, hoverPos.y)
       if (cell) {
         const value = data[cell.x]?.[cell.y]
-        if (value !== undefined) {
+        if (value !== undefined && value !== null) {
           setHoveredCell({ ...cell, value })
         }
       } else {
@@ -281,13 +281,13 @@ export default function Visualization({
           />
           {hoveredCell && showTooltips && (
             <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none">
-              Cell ({hoveredCell.x}, {hoveredCell.y}): {hoveredCell.value}
+              Cell ({hoveredCell.x}, {hoveredCell.y}): {hoveredCell.value.toFixed(2)}
             </div>
           )}
 
           {showLegend && (
             <div className="absolute top-0 right-0 bg-white border rounded p-2 gap-2 shadow h-full flex flex-col items-center text-xs justify-between">
-              <div>{maxValue}</div>
+              <div>{maxValue.toFixed(2)}</div>
               <div
                 className="w-4 h-full rounded"
                 style={{
@@ -297,7 +297,7 @@ export default function Visualization({
                     100
                   ),
                 }}></div>
-              <div>{minValue}</div>
+              <div>{minValue.toFixed(2)}</div>
             </div>
           )}
         </div>

@@ -9,7 +9,8 @@ export interface Point {
 interface UseCanvasInteractionsProps {
   externalCanvasRef: React.RefObject<(HTMLCanvasElement | null)[]>
   draw: (
-    canvas: HTMLCanvasElement,
+    canvasX: HTMLCanvasElement,
+    canvasY: HTMLCanvasElement,
     offset: { x: number, y: number },
     zoom: number) => void
 }
@@ -46,11 +47,10 @@ export function useDualInteractions({
   }
 
   const requestDraw = useCallback(() => {
-    canvasRefs.current.forEach((canvas) => {
-      if (canvas) {
-        drawRef.current(canvas, offsetRef.current, zoomRef.current)
-      }
-    })
+    const canvasX = canvasRefs.current[0]
+    const canvasY = canvasRefs.current[1]
+    if (!canvasX || !canvasY) return
+    drawRef.current(canvasX, canvasY, offsetRef.current, zoomRef.current)
   }, [draw])
 
   // Zoom controls

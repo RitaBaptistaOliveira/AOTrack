@@ -110,7 +110,6 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
     [wfsIndex]
   )
 
-
   const preloadAround = async (center: number, radius = 5) => {
     const min = Math.max(0, center - radius)
     const max = Math.min(
@@ -131,17 +130,21 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
           console.error(`Failed to fetch frame ${frameIndex}:`, err)
         }
       }
-
-      for (const key of newBuffer.keys()) {
-        if (key < min || key > max) newBuffer.delete(key)
-      }
-
-      setBuffer(newBuffer)
     }
+
+    for (const key of newBuffer.keys()) {
+      if (key < min || key > max) newBuffer.delete(key)
+    }
+
+    setBuffer(newBuffer)
   }
 
   return {
-    getFrame: (i: number) => buffer.get(i),
+    getFrame: (i: number) => {
+      console.log("Copy of buffer:", new Map(buffer));
+      console.log("Buffer for index", i, ":", buffer.get(i))
+      return buffer.get(i)
+    },
     hasFrame: (i: number) => buffer.has(i),
     preloadAround,
     meta,
