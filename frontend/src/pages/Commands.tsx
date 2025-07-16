@@ -9,9 +9,11 @@ import Histogram from '@/components/charts/hist-chart'
 import StatTable from '@/components/charts/stat-table'
 import { Card } from '@/components/ui/card'
 import { LineChart, BarChart3 } from "lucide-react"
+import { useAoSession } from '@/contexts/ao-session-context'
 
 export default function Commands() {
-  const frameBuffer = useCommandBuffer(0)
+  const {wfc} = useAoSession()
+  const frameBuffer = useCommandBuffer(wfc)
   const [currentFrame, setCurrentFrame] = useState(0)
   const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number, value: number } | null>(null)
   const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, value: number } | null>(null)

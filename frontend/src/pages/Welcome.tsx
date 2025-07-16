@@ -1,70 +1,72 @@
-import { useMemo, useRef, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { UploadCloud, ArrowDown } from "lucide-react";
-import { ROUTE_PATHS } from "../routes";
-import { Button } from "@/components/ui/button";
-import { useNavigate } from "react-router-dom";
-import { BackgroundParticles } from "@/components/background-particles";
-import { useAoHelper } from "@/hooks/use-ao-helper";
-import { useAoSession } from "@/contexts/ao-session-context";
+import { useMemo, useRef, useState } from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
+import { UploadCloud, ArrowDown } from "lucide-react"
+import { ROUTE_PATHS } from "../routes"
+import { Button } from "@/components/ui/button"
+import { useNavigate } from "react-router-dom"
+import { BackgroundParticles } from "@/components/background-particles"
+import { useAoHelper } from "@/hooks/use-ao-helper"
+import { useAoSession } from "@/contexts/ao-session-context"
+import { format } from "date-fns"
 
 export default function Welcome() {
 
-    const { uploadFile } = useAoHelper();
-    const { fileName, fileSize, metadataSummary } = useAoSession();
-    const navigate = useNavigate();
+    const { uploadFile } = useAoHelper()
+    const { fileName, fileSize, metadataSummary } = useAoSession()
+    const navigate = useNavigate()
 
     const [activeTab, setActiveTab] = useState("local")
-    const [fileUploaded, setFileUploaded] = useState(false);
-    const [uploadError, setUploadError] = useState<string | null>(null);
-    const [dragging, setDragging] = useState(false);
-    const [isUploading, setIsUploading] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
-    const uploaderRef = useRef<HTMLDivElement | null>(null);
+    const [fileUploaded, setFileUploaded] = useState(false)
+    const [uploadError, setUploadError] = useState<string | null>(null)
+    const [dragging, setDragging] = useState(false)
+    const [isUploading, setIsUploading] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement | null>(null)
+    const uploaderRef = useRef<HTMLDivElement | null>(null)
     const handleDrop = async (e: React.DragEvent<HTMLLabelElement>) => {
-        e.preventDefault();
-        setDragging(false);
-        const selected = e.dataTransfer.files?.[0];
+        e.preventDefault()
+        setDragging(false)
+        const selected = e.dataTransfer.files?.[0]
         if (selected && selected.name.endsWith(".fits")) {
-            setIsUploading(true);
+            setIsUploading(true)
             try {
-                await uploadFile(selected);
-                setFileUploaded(true);
+                await uploadFile(selected)
+                setFileUploaded(true)
             } catch (err) {
-                alert("Upload failed.");
+                alert("Upload failed.")
             } finally {
-                setIsUploading(false);
+                setIsUploading(false)
             }
         } else {
-            alert("Only .fits files are accepted.");
+            alert("Only .fits files are accepted.")
         }
-    };
+    }
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selected = e.target.files?.[0];
+        setFileUploaded(false)
+        const selected = e.target.files?.[0]
         if (selected && selected.name.endsWith(".fits")) {
-            setIsUploading(true);
-            setUploadError(null);
+            setIsUploading(true)
+            setUploadError(null)
             try {
-                await uploadFile(selected);
-                setFileUploaded(true);
+                await uploadFile(selected)
+                setFileUploaded(true)
             } catch (err) {
-                setUploadError("Upload failed. Please try again. Error " + (err instanceof Error ? `${err.name}: ${err.message}` : ""));
+                setUploadError("Upload failed. Please try again. Error " + (err instanceof Error ? `${err.name}: ${err.message}` : ""))
             } finally {
-                setIsUploading(false);
+                setIsUploading(false)
             }
         } else {
-            setUploadError("Only .fits files are accepted.");
+            setUploadError("Only .fits files are accepted.")
         }
-    };
+    }
 
     const MemoizedParticles = useMemo(() => {
         return (
             <BackgroundParticles />
-        );
-    }, []);
+        )
+    }, [])
 
     return (
         <div className="relative min-h-screen bg-[#14213D] overflow-auto text-white">
@@ -83,7 +85,7 @@ export default function Welcome() {
                         <div className="flex justify-center my-6 md:hidden">
                             <Button
                                 onClick={() => {
-                                    uploaderRef.current?.scrollIntoView({ behavior: "smooth" });
+                                    uploaderRef.current?.scrollIntoView({ behavior: "smooth" })
                                 }}
                             >
                                 <ArrowDown className="text-fr-primary" />
@@ -162,12 +164,12 @@ export default function Welcome() {
                                             < label
                                                 htmlFor="file-upload"
                                                 onDragOver={(e) => {
-                                                    e.preventDefault();
-                                                    setDragging(true);
+                                                    e.preventDefault()
+                                                    setDragging(true)
                                                 }}
                                                 onDragLeave={(e) => {
-                                                    e.preventDefault();
-                                                    setDragging(false);
+                                                    e.preventDefault()
+                                                    setDragging(false)
                                                 }}
                                                 onDrop={handleDrop}
                                                 className={`w-full flex-1 flex flex-col border-2 border-dashed rounded-xl text-center cursor-pointer transition-colors ${dragging ? "border-blue-400 bg-white/10" : "border-gray-400 hover:bg-white/5"}`}
@@ -186,11 +188,14 @@ export default function Welcome() {
                                                     />
                                                 </div>
 
-                                                <div className="mt-auto min-h-[1.5rem]">
-                                                    {uploadError && (
-                                                        <p className="text-red-400 text-center font-semibold">{uploadError}</p>
-                                                    )}
-                                                </div>
+
+                                                {uploadError && (
+                                                    <div className="mt-4 px-4 pb-4">
+                                                        <p className="text-red-400 text-center font-semibold text-sm bg-red-900/20 border border-red-400/30 rounded-lg px-3 py-2">
+                                                            {uploadError}
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </label>
                                         )
                                     ) : (
@@ -212,15 +217,15 @@ export default function Welcome() {
                                                         </tr>
                                                         <tr>
                                                             <td className="font-medium">Start Date</td>
-                                                            <td>{metadataSummary.start_date || "–"}</td>
+                                                            <td>{metadataSummary.start_date ? format(new Date(metadataSummary.start_date), "dd MMM yyyy, HH:mm") : "–"}</td>
                                                         </tr>
                                                         <tr>
                                                             <td className="font-medium">End Date</td>
-                                                            <td>{metadataSummary.end_date || "–"}</td>
+                                                            <td>{metadataSummary.end_date ? format(new Date(metadataSummary.end_date), "dd MMM yyyy, HH:mm") : "–"}</td>
                                                         </tr>
                                                         <tr>
                                                             <td className="font-medium">Recording Time</td>
-                                                            <td>{metadataSummary.recording_time || "–"}</td>
+                                                            <td>{metadataSummary.recording_time?.toFixed(3) || "–"} s</td>
                                                         </tr>
                                                     </tbody>
                                                 </table>
@@ -276,5 +281,5 @@ export default function Welcome() {
                 </div>
             </div>
         </div >
-    );
+    )
 }

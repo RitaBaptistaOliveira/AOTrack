@@ -1,13 +1,64 @@
-
 import { useLocation, Link } from "react-router-dom"
+import { useState, useEffect } from "react"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
+import { useAoSession } from "@/contexts/ao-session-context"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export function BreadcrumbNav() {
+  const { metadataSummary, setWfs, setWfc } = useAoSession()
   const location = useLocation()
   const pathnames = location.pathname.split("/").filter(Boolean)
   const section = pathnames[1]
-  const label = section.charAt(0).toUpperCase() + section.slice(1).replace(/-/g, " ")
+  const label = section?.charAt(0).toUpperCase() + section?.slice(1).replace(/-/g, " ")
+  const [selected, setSelected] = useState<string>("")
+  const [items, setItems] = useState<string[]>([])
+  console.log(metadataSummary)
+
+  useEffect(() => {
+    if (!metadataSummary) return
+
+    switch (section) {
+      case "pixels":
+      case "measurements": {
+        const s = metadataSummary.wavefront_sensors?.map(wfs => wfs.uid) ?? []
+        setItems(s)
+        setSelected(s[0])
+        break
+      }
+      case "commands": {
+        const c = metadataSummary.wavefront_correctors?.map(wfc => wfc.uid) ?? []
+        setItems(c)
+        setSelected(c[0])
+        break
+      }
+      case "overview": {
+        setItems([])
+        break
+      }
+    }
+  }, [section, metadataSummary])
+
+  function setSelectedValue(value: string) {
+    const index = items.indexOf(value)
+    if (index === -1) return
+
+    setSelected(value)
+
+    switch (section) {
+      case "pixels":
+      case "measurements":
+        setWfs(index)
+        break
+      case "commands":
+        setWfc(index)
+        break
+    }
+
+    console.log(index)
+  }
+
   if (!section) return null
+
   return (
     <Breadcrumb>
       <BreadcrumbList>
@@ -20,6 +71,30 @@ export function BreadcrumbNav() {
         <BreadcrumbItem>
           <BreadcrumbPage>{label}</BreadcrumbPage>
         </BreadcrumbItem>
+        {items.length > 0 &&
+          <>
+            <BreadcrumbSeparator className="text-foreground"/>
+
+            <BreadcrumbItem>
+
+              <Select value={selected} onValueChange={setSelectedValue}>
+                <SelectTrigger className="w-full text-foreground">
+                  <SelectValue placeholder={selected} />
+                </SelectTrigger>
+                <SelectContent>
+                  {items.map((item) => (
+                    <SelectItem key={item} value={item}>
+                      {item}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+            </BreadcrumbItem>
+          </>
+
+
+        }
       </BreadcrumbList>
     </Breadcrumb>
   )

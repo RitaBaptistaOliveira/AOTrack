@@ -9,10 +9,11 @@ import DualStatTable from '@/components/dual-charts/stat-table'
 import DualHistogram from '@/components/dual-charts/hist-chart'
 import { Card } from '@/components/ui/card'
 import { LineChart, BarChart3 } from "lucide-react"
-
+import { useAoSession } from '@/contexts/ao-session-context'
 
 export default function Measurements() {
-  const frameBuffer = useSlopeFrameBuffer(0)
+  const { wfs } = useAoSession()
+  const frameBuffer = useSlopeFrameBuffer(wfs)
   const [currentFrame, setCurrentFrame] = useState(0)
   const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number, values: [number, number] } | null>(null)
   const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, values: [number, number] } | null>(null)
