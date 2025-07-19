@@ -8,7 +8,7 @@ export function drawHeatmap(
     data: number[][],
     numRows: number,
     numCols: number,
-    selectedCell: { x: number; y: number } | null,
+    selectedCell: { col: number; row: number } | null,
     interpolator: d3.ScaleSequential<string, never>
 ) {
     if (!data) {
@@ -44,7 +44,7 @@ export function drawHeatmap(
     if (selectedCell) {
         ctx.strokeStyle = "#FF1493"
         ctx.lineWidth = 1
-        ctx.strokeRect(selectedCell.x * cellWidth, selectedCell.y * cellHeight, cellWidth, cellHeight)
+        ctx.strokeRect(selectedCell.col * cellWidth, selectedCell.row * cellHeight, cellWidth, cellHeight)
     }
     ctx.restore()
 }
@@ -164,3 +164,5 @@ export function parseMetadata(raw: any): MetadataSummary {
     })),
   }
 }
+
+

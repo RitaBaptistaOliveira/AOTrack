@@ -140,11 +140,7 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
   }
 
   return {
-    getFrame: (i: number) => {
-      console.log("Copy of buffer:", new Map(buffer));
-      console.log("Buffer for index", i, ":", buffer.get(i))
-      return buffer.get(i)
-    },
+    getFrame: (i: number) => buffer.get(i),
     hasFrame: (i: number) => buffer.has(i),
     preloadAround,
     meta,

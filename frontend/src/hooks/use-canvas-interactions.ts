@@ -16,11 +16,10 @@ interface UseCanvasInteractionsProps {
   ) => void
 }
 
-export function useCanvasInteractions({
-  externalCanvasRefs,
-  draw
-}: UseCanvasInteractionsProps) {
+export function useCanvasInteractions({ externalCanvasRefs, draw }: UseCanvasInteractionsProps) {
+  
   const drawRef = useRef(draw)
+
   useEffect(() => {
     drawRef.current = draw
   }, [draw])

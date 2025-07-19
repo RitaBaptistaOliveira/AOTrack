@@ -2,8 +2,8 @@ import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dash
 import { useCallback, useEffect, useState } from 'react'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useSlopeFrameBuffer } from "@/hooks/use-slope-buffer"
-import DualHeatmap from '@/components/dual-charts/heatmap-chart'
-import DualFlapHeatmap from '@/components/dual-charts/heatmap-flat-chart'
+import Heatmap from '@/components/dual-charts/heatmap-chart'
+import TileHeatmap from '@/components/dual-charts/tile-heatmap-chart'
 import DualLineChart from '@/components/dual-charts/line-chart'
 import DualStatTable from '@/components/dual-charts/stat-table'
 import DualHistogram from '@/components/dual-charts/hist-chart'
@@ -15,8 +15,8 @@ export default function Measurements() {
   const { wfs } = useAoSession()
   const frameBuffer = useSlopeFrameBuffer(wfs)
   const [currentFrame, setCurrentFrame] = useState(0)
-  const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number, values: [number, number] } | null>(null)
-  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, values: [number, number] } | null>(null)
+  const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number } | null>(null)
+  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number } | null>(null)
   const currentFrameData = frameBuffer.getFrame(currentFrame)
   const { scaleType, intervalType } = useChartInteraction()
 
@@ -36,79 +36,64 @@ export default function Measurements() {
     }
   }, [frameBuffer.meta])
 
-  const handleSelect = useCallback(async (selected: { frame: number, x: number; y: number | undefined; values: [number, number] } | null) => {
+  const handleCellSelect = useCallback(async (selected: { frame: number, col: number; row: number } | null) => {
+    setSelectedCell(selected)
     if (selected && meta) {
-      const mask = meta.subapertureMask
-      const numRows = meta.numRows || 1
-      const numCols = meta.numCols || 1
-      console.log("Selected:", selected)
-      if (mask) {
-        if (typeof selected.y === 'number') {
-          const col = selected.x
-          const row = selected.y
-          const index = mask[col]?.[row]
-          console.log("IF: Selected cell at col:", col, "row:", row, "index:", index)
-          if (index === undefined || index === -1) {
-            console.warn("Invalid mask access at", col, row)
-            return
-          }
-          setCurrentFrame(selected.frame)
-          setSelectedCell({ frame: selected.frame, col, row, values: selected.values })
-          setSelectedPoint({
-            frame: selected.frame,
-            index: index,
-            values: selected.values,
-          })
-          await frameBuffer.fetchPointData(index)
-        }
-        else {
-          let found = false
-          for (let r = 0; r < numRows; r++) {
-            for (let c = 0; c < numCols; c++) {
-              if (mask[c][r] === selected.x) {
-                console.log("ELSE: Selected cell at col:", c, "row:", r, "index:", selected.x)
-                setCurrentFrame(selected.frame)
-                setSelectedCell({ frame: selected.frame, col: c, row: r, values: selected.values })
-                setSelectedPoint({ frame: selected.frame, index: selected.x, values: selected.values })
-                await frameBuffer.fetchPointData(selected.x)
-                found = true
-                break
-              }
-            }
-            if (found) break
-          }
-          if (!found) {
-            console.warn("Index not found in mask:", selected.x)
-            setSelectedPoint({ frame: selected.frame, index: selected.x, values: selected.values })
-            await frameBuffer.fetchPointData(selected.x)
-          }
-        }
-      }
-      else {
-        setCurrentFrame(selected.frame)
+      const col = selected.col
+      const row = selected.row
+      const mask = meta?.subapertureMask
+      const index = mask?.[col][row]
+      console.log(index)
+      if (index === undefined || index === -1) {
+        console.warn("Invalid mask access at", col, row)
+        return
+      } else {
+        console.log("Setting point")
         setSelectedPoint({
           frame: selected.frame,
-          index: selected.x,
-          values: selected.values,
+          index: index
         })
-        await frameBuffer.fetchPointData(selected.x)
+        await frameBuffer.fetchPointData(index)
       }
     } else {
-      setSelectedCell(null)
+      console.log("Point null")
       setSelectedPoint(null)
       frameBuffer.setPointData(undefined)
     }
-  }, [frameBuffer])
+  }, [meta])
+
+  const handlePointSelect = useCallback(async (selected: { frame: number, index: number } | null) => {
+    setSelectedPoint(selected)
+    if (selected && meta) {
+      const mask = meta.subapertureMask
+      const index = selected.index
+      const frame = selected.frame
+      if (mask) {
+        const col = mask.findIndex(col => col.includes(index))
+        if (col === -1) {
+          console.warn("Invalid mask access for index ", index)
+          setSelectedCell(null)
+          return
+        }
+        const row = mask[col].indexOf(index)
+        setCurrentFrame(frame)
+        setSelectedCell({ frame, col, row })
+      }
+      await frameBuffer.fetchPointData(index)
+    } else {
+      setSelectedCell(null)
+      frameBuffer.setPointData(undefined)
+    }
+  }, [meta])
 
   const handleFrameChange = useCallback((frame: number) => {
     setCurrentFrame(frame)
+    setSelectedCell(prev => prev ? { ...prev, frame } : null)
+    setSelectedPoint(prev => prev ? { ...prev, frame } : null)
   }, [])
 
   useEffect(() => {
     frameBuffer.preloadAround(currentFrame, 2)
-
-    console
-
   }, [currentFrame, scaleType, intervalType])
 
   return (
@@ -117,17 +102,16 @@ export default function Measurements() {
       <GridItem area="a">
         {(meta?.numCols && meta.numRows && meta.subapertureMask)
           ?
-          <DualHeatmap
+          <Heatmap
             data={currentFrameData ? [currentFrameData.x, currentFrameData.y] : [[[]], [[]]]}
             numRows={meta.numRows}
             numCols={meta.numCols}
-            mask={meta.subapertureMask}
             numFrames={meta.numFrames}
             minValue={meta.overallMin}
             maxValue={meta.overallMax}
-            onCellSelect={handleSelect}
+            onCellSelect={handleCellSelect}
             onFrameChange={handleFrameChange}
-            selectedPoint={selectedPoint}
+            selectedCell={selectedCell}
           />
           :
           <div className='text-center'>
@@ -139,14 +123,13 @@ export default function Measurements() {
       </GridItem>
       <GridItem area="b">
         {meta &&
-          <DualFlapHeatmap
+          <TileHeatmap
             numFrames={meta.numFrames}
             numIndexes={meta.numIndices}
-            mask={meta.subapertureMask || undefined}
             minValue={meta.overallMin}
             maxValue={meta.overallMax}
-            onPointSelect={handleSelect}
-            selectedCell={selectedCell}
+            onPointSelect={handlePointSelect}
+            selectedPoint={selectedPoint}
           />
         }
 
