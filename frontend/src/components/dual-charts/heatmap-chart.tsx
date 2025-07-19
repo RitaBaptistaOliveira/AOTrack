@@ -7,7 +7,7 @@ import FrameSlider from "../controls/frame-slider"
 import DropdownGroup from "../controls/dropdown-group"
 import ControlBar from "../controls/control-bar"
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
-import { useDualInteractions } from "@/hooks/use-dual-interactions"
+import { useCanvasInteractions } from "@/hooks/use-canvas-interactions"
 import { drawHeatmap } from "@/utils"
 import type { ColorMap } from "@/types/visualization";
 import * as d3 from "d3"
@@ -85,32 +85,22 @@ export default function DualHeatmap({
     downloadPNG,
     requestDraw,
     scheduleDraw
-  } = useDualInteractions({
-    externalCanvasRef: canvasRefs,
-
-    draw: (canvasX, canvasY, offset, zoom) => {
-      const frameDataX = data[0]
-      const frameDataY = data[1]
-      drawHeatmap(
-        canvasX,
-        offset,
-        zoom,
-        frameDataX,
-        numRows,
-        numCols,
-        selectedCell,
-        interpolator.current
-      )
-      drawHeatmap(
-        canvasY,
-        offset,
-        zoom,
-        frameDataY,
-        numRows,
-        numCols,
-        selectedCell,
-        interpolator.current
-      )
+  } = useCanvasInteractions({
+    externalCanvasRefs: canvasRefs,
+    draw: (canvases, offset, zoom) => {
+      canvases.forEach((canvas, i) => {
+        const frame = data[i]
+        drawHeatmap(
+          canvas,
+          offset,
+          zoom,
+          frame,
+          numRows,
+          numCols,
+          selectedCell,
+          interpolator.current
+        )
+      })
     }
   })
 
@@ -318,7 +308,7 @@ export default function DualHeatmap({
                 onMouseLeave={handleMouseLeave}
                 onWheel={handleMouseWheel}
                 onKeyDown={handleKeyDown}
-                className={`flex-1 ${mode === "pan" ? "cursor-move" : "cursor-crosshair"}`}
+                className={`${mode === "pan" ? "cursor-move" : "cursor-crosshair"}`}
               />
             ))}
           </div>

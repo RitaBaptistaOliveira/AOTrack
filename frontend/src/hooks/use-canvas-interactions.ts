@@ -7,133 +7,236 @@ export interface Point {
   y: number
 }
 
-export function useCanvasInteractions() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+interface UseCanvasInteractionsProps {
+  externalCanvasRefs: React.RefObject<(HTMLCanvasElement | null)[]>
+  draw: (
+    canvases: HTMLCanvasElement[],
+    offset: { x: number, y: number },
+    zoom: number
+  ) => void
+}
 
+export function useCanvasInteractions({
+  externalCanvasRefs,
+  draw
+}: UseCanvasInteractionsProps) {
+  const drawRef = useRef(draw)
+  useEffect(() => {
+    drawRef.current = draw
+  }, [draw])
+
+  const canvasRefs = externalCanvasRefs
   const [mode, setMode] = useState<BarMode>("select")
-  const [zoom, setZoom] = useState(1)
-  const [offset, setOffset] = useState<Point>({ x: 0, y: 0 })
-
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragStart, setDragStart] = useState<Point | null>(null)
+  const zoomRef = useRef<number>(1)
+  const offsetRef = useRef<Point>({ x: 0, y: 0 })
+  const dragStartRef = useRef<Point | null>(null)
+  const isDraggingRef = useRef(false)
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
   const [clickPosition, setClickPosition] = useState<Point | null>(null)
   const [hoverPos, setHoverPos] = useState<Point | null>(null)
 
-  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 })
+  const animationFrameRef = useRef<number | null>(null)
 
-  // Zoom controls
-  const zoomIn = () => setZoom(z => Math.min(z * 1.2, 10))
-  const zoomOut = () => setZoom(z => Math.max(z / 1.2, 0.1))
-  const resetZoom = () => {
-    setZoom(1)
-    setOffset({ x: 0, y: 0 })
+  const scheduleDraw = () => {
+    if (animationFrameRef.current == null) {
+      animationFrameRef.current = requestAnimationFrame(() => {
+        animationFrameRef.current = null
+        requestDraw()
+      })
+    }
   }
 
-  // Pan
-  const handlePan = useCallback((dx: number, dy: number) => {
-    setOffset(o => ({ x: o.x + dx, y: o.y + dy }))
-  }, [])
+  const requestDraw = useCallback(() => {
+    const canvases = canvasRefs.current?.filter(Boolean) as HTMLCanvasElement[]
+    if (!canvases?.length) return
+    drawRef.current(canvases, offsetRef.current, zoomRef.current)
+  }, [draw])
 
-  // Mouse events
+  const zoomIn = () => {
+    zoomRef.current = Math.min(zoomRef.current * 1.1, 15)
+    scheduleDraw()
+  }
+
+  const zoomOut = () => {
+    zoomRef.current = Math.max(zoomRef.current / 1.1, 0.05)
+    scheduleDraw()
+  }
+
+  const resetZoom = () => {
+    offsetRef.current = { x: 0, y: 0 }
+    zoomRef.current = 1
+    scheduleDraw()
+  }
+
+  const getCanvasCoordinates = useCallback(
+    (e: React.MouseEvent, canvas: HTMLCanvasElement) => {
+      const rect = canvas.getBoundingClientRect()
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top }
+    }, [])
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    const rect = canvasRef.current?.getBoundingClientRect()
-    if (!rect) return
+    const targetCanvas = e.target as HTMLCanvasElement
+    if (!targetCanvas) return
+    const coords = getCanvasCoordinates(e, targetCanvas)
+    dragStartRef.current = coords
+    isDraggingRef.current = true
 
-    const x = (e.clientX - rect.left)
-    const y = (e.clientY - rect.top)
-    const pt = { x, y }
-    setDragStart(pt)
-    setIsDragging(true)
     if (mode === "select") {
-      setClickPosition(pt)
+      setClickPosition(coords)
     }
 
+    requestDraw()
   }, [mode])
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging || !dragStart || !canvasRef.current) return
-    const rect = canvasRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    setHoverPos({ x, y })
+  const handleMouseUp = () => {
+    isDraggingRef.current = false
+    dragStartRef.current = null
+  }
 
-    const dx = x - dragStart.x
-    const dy = y - dragStart.y
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const targetCanvas = e.target as HTMLCanvasElement
+    if (!targetCanvas) return
+    const coords = getCanvasCoordinates(e, targetCanvas)
+    setHoverPos(coords)
 
-    if (mode === "pan") {
-      handlePan(dx, dy)
-      setDragStart({ x, y }) // continue dragging from current
+    if (isDraggingRef.current && dragStartRef.current && mode === "pan") {
+      const dx = coords.x - dragStartRef.current.x
+      const dy = coords.y - dragStartRef.current.y
+      offsetRef.current.x += dx
+      offsetRef.current.y += dy
+      dragStartRef.current = coords
+      scheduleDraw()
     }
-  }, [isDragging, dragStart, mode, handlePan])
+  }
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
-    setDragStart(null)
-  }, [])
-
-  const handleMouseLeave = useCallback(() => {
-    setIsDragging(false)
-    setDragStart(null)
-  }, [])
+  const handleMouseLeave = () => {
+    isDraggingRef.current = false
+    dragStartRef.current = null
+  }
 
   const handleMouseWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault()
+    const targetCanvas = e.target as HTMLCanvasElement
+    if (!targetCanvas) return
 
-    const canvas = canvasRef.current
-    if (!canvas) return
+    if (e.shiftKey) {
+      offsetRef.current.y -= e.deltaY
+      requestDraw()
+      return
+    }
 
-    const rect = canvas.getBoundingClientRect()
+    if (e.altKey) {
+      offsetRef.current.x -= e.deltaY
+      requestDraw()
+      return
+    }
+
+    const rect = targetCanvas.getBoundingClientRect()
     const mouseX = (e.clientX - rect.left)
     const mouseY = (e.clientY - rect.top)
 
+    const prevZoom = zoomRef.current
     const zoomFactor = 1.1
     const delta = e.deltaY < 0 ? zoomFactor : 1 / zoomFactor
+    const newZoom = Math.min(Math.max(prevZoom * delta, 0.1), 10)
 
-    // Get data-space coordinates before zoom
-    const beforeZoomX = (mouseX - offset.x) / zoom
-    const beforeZoomY = (mouseY - offset.y) / zoom
+    const worldX = (mouseX - offsetRef.current.x) / prevZoom
+    const worldY = (mouseY - offsetRef.current.y) / prevZoom
 
-    const newZoom = Math.min(Math.max(zoom * delta, 0.1), 10)
-    setZoom(newZoom)
+    zoomRef.current = newZoom
+    offsetRef.current.x = mouseX - worldX * newZoom
+    offsetRef.current.y = mouseY - worldY * newZoom
 
-    // Adjust offset to keep mouse position stable
-    const newOffsetX = mouseX - beforeZoomX * newZoom
-    const newOffsetY = mouseY - beforeZoomY * newZoom
-    setOffset({ x: newOffsetX, y: newOffsetY })
-  }, [zoom, offset])
+    requestDraw()
+  }, [])
 
-  // Download PNG
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const step = 50
+    switch (e.key) {
+      case "ArrowUp":
+      case "w":
+        offsetRef.current.y += step
+        break
+      case "ArrowDown":
+      case "s":
+        offsetRef.current.y -= step
+        break
+      case "ArrowLeft":
+      case "a":
+        offsetRef.current.x += step
+        break
+      case "ArrowRight":
+      case "d":
+        offsetRef.current.x -= step
+        break
+      default:
+        return
+    }
+    scheduleDraw()
+  }, [])
+
   const downloadPNG = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const link = document.createElement("a")
-    link.download = "chart.png"
-    link.href = canvas.toDataURL("image/png")
-    link.click()
+    canvasRefs.current?.forEach((canvas, index) => {
+      if (!canvas) return
+      const link = document.createElement("a")
+      link.download = `canvas_${index}.png`
+      link.href = canvas.toDataURL("image/png")
+      link.click()
+    })
+  }, [])
+
+  const resizeCanvas = useCallback(() => {
+    const canvases = canvasRefs.current?.filter(Boolean) as HTMLCanvasElement[]
+    const n = canvases.length
+
+    canvases.forEach(canvas => {
+      const parent = canvas.parentElement
+      if (!parent) return
+
+      const rect = parent.getBoundingClientRect()
+      const dpr = window.devicePixelRatio || 1
+
+      const width = (rect.width / n) * dpr
+      const height = rect.height * dpr
+
+      canvas.width = width
+      canvas.height = height
+      canvas.style.width = `${rect.width}px`
+      canvas.style.height = `${rect.height}px`
+
+      setCanvasSize({ width, height })
+
+      const ctx = canvas.getContext("2d")
+      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    })
   }, [])
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
+    canvasRefs.current?.forEach(canvas => {
+      if (!canvas) return
+      const parent = canvas.parentElement
+      if (!parent) return
 
-    const resize = () => useResizeCanvas(canvas, setCanvasSize)
+      let resizeTimeout: ReturnType<typeof setTimeout> | null = null
+      const resizeObserver = new ResizeObserver(() => {
+        if (resizeTimeout) clearTimeout(resizeTimeout)
+        resizeTimeout = setTimeout(() => {
+          resizeCanvas()
+          scheduleDraw()
+        }, 6)
+      })
+      resizeObserver.observe(parent)
 
-    resize()
-    const observer = new ResizeObserver(resize)
-    observer.observe(canvas.parentElement!)
-
-    return () => observer.disconnect()
+      return () => resizeObserver.disconnect()
+    })
   }, [])
 
-
   return {
-    canvasRef,
     mode,
-    zoom,
-    offset,
     canvasSize,
+    zoomRef,
     clickPosition,
     hoverPos,
+    offsetRef,
 
     setMode,
     zoomIn,
@@ -145,25 +248,9 @@ export function useCanvasInteractions() {
     handleMouseMove,
     handleMouseUp,
     handleMouseLeave,
-    handleMouseWheel
+    handleMouseWheel,
+    handleKeyDown,
+    scheduleDraw,
+    requestDraw
   }
-}
-
-export function useResizeCanvas(canvas: HTMLCanvasElement, setCanvasSize?: (size: { width: number; height: number }) => void) {
-  const parent = canvas.parentElement
-  if (!parent) return
-
-  const dpr = window.devicePixelRatio || 1
-  const width = parent.clientWidth
-  const height = parent.clientHeight
-
-  canvas.width = width * dpr
-  canvas.height = height * dpr
-  canvas.style.width = `${width}px`
-  canvas.style.height = `${height}px`
-
-  const ctx = canvas.getContext("2d")
-  if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-
-  if (setCanvasSize) setCanvasSize({ width, height })
 }

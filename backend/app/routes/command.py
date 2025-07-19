@@ -83,38 +83,23 @@ async def get_flat_tile_post(request: Request):
             raise HTTPException(status_code=400, detail=f"loop_index {loop_index} out of range")
 
         loop = loops[loop_index]
-        corrector = loop.commanded_corrector
-        influence_function = corrector.influence_function.data
-        
-        n_actuators, x, y = influence_function.shape
-        influence_matrix = influence_function.reshape(n_actuators, x * y)
         
         commands = loop.commands.data
         n_frames = commands.shape[0]
-        images_flat = commands @ influence_matrix
-        images_2d = images_flat.reshape(n_frames, x, y)
+        n_indexes = commands.shape[1]
+
+        frame_end = min(frame_end, n_frames)
+        index_end = min(index_end, n_indexes)
+
         
-        num_frames, num_cols, num_rows = images_2d.shape
-
-        frame_end = min(frame_end, num_frames)
-        index_end = min(index_end, num_cols * num_rows)
-
-        tile_data = []
-        for frame in range(frame_start, frame_end):
-            transformed = process_frame(scale_type, interval_type, images_2d[frame])
-            flat = [
-                transformed[col][row]
-                for col in range(num_cols)
-                for row in range(num_rows)
-            ]
-            sliced = flat[index_start:index_end]
-            tile_data.append(np.array(sliced))
+        transformed = process_frame(scale_type, interval_type, commands)
+        sliced = transformed[frame_start:frame_end, index_start:index_end]
 
         del system
         gc.collect()
 
         return JSONResponse({
-            "tile": np.array(tile_data).tolist(),
+            "tile": np.array(sliced).tolist(),
         })
 
     except Exception as e:

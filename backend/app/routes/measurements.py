@@ -94,24 +94,18 @@ async def get_flat_tile_post(request: Request):
         frame_end = min(frame_end, num_frames)
         index_end = min(index_end, num_index)
 
-        x_tile_data = []
-        y_tile_data = []
 
-        for frame in range(frame_start, frame_end):
-            transformedX = process_frame(scale_type, interval_type, x_measurements[frame])
-            transformedY = process_frame(scale_type, interval_type, y_measurements[frame])
-            x_sliced = transformedX[index_start:index_end]
-            y_sliced = transformedY[index_start:index_end]
-
-            x_tile_data.append(x_sliced.tolist())
-            y_tile_data.append(y_sliced.tolist())
+        transformedX = process_frame(scale_type, interval_type, x_measurements)
+        transformedY = process_frame(scale_type, interval_type, y_measurements)
+        x_sliced = transformedX[frame_start:frame_end, index_start:index_end]
+        y_sliced = transformedY[frame_start:frame_end, index_start:index_end]
 
         del system
         gc.collect()
 
         return JSONResponse({
-            "tileX": x_tile_data,
-            "tileY": y_tile_data
+            "tileX": x_sliced.tolist(),
+            "tileY": y_sliced.tolist()
         })
     except Exception as e:
         print(f"Tile fetch error: {e}")
