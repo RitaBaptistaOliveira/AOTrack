@@ -8,6 +8,7 @@ import type { DataPoint } from "@/types/visualization"
 type FrameMeta = {
   numFrames: number
   numIndices: number
+  dim: number
   overallMin: number
   overallMax: number
   numRows?: number
@@ -59,6 +60,7 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
       setMeta({
         numFrames: data.num_frames,
         numIndices: data.num_indices,
+        dim: data.dim,
         overallMin: data.overall_min,
         overallMax: data.overall_max,
         numCols: data.num_cols ?? undefined,

@@ -14,7 +14,7 @@ export async function fetchTile({
     wfsIndex: number
     scaleType: string
     intervalType: string
-}): Promise<{ tileX: number[][], tileY: number[][] }> {
+}): Promise<{tiles: number[][][]}> {
     const form = new FormData()
     form.append("frame_start", frameStart.toString())
     form.append("frame_end", frameEnd.toString())

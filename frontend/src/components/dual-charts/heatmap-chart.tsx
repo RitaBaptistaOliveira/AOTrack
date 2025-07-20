@@ -50,7 +50,6 @@ export default function Heatmap({
     }
   };
   const { colorMap } = useChartInteraction()
-  // const canvasRefs = useRef<[HTMLCanvasElement | null, HTMLCanvasElement | null]>([null, null])
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([])
   const [currentFrame, setCurrentFrame] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)

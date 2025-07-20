@@ -1,6 +1,6 @@
 export type ColorMap = "viridis" | "greys" | "blues" | "reds" | "greens" | "rainbow" | "inferno"
 export type ScaleType = "linear" | "log" | "sqrt" | "pow" | "squared" | "asinh" | "sinh" | "histequal" |  "logexp"
-export type IntervalType = "percentile" | "zscale" | "minmax"
+export type IntervalType = string | "zscale" | "minmax"
 
 export interface HeatmapProps {
   frames: number[][][]

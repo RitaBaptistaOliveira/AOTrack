@@ -20,7 +20,7 @@ interface FlatHeatmapProps {
   minValue: number
   maxValue: number
   onPointSelect: (point: { frame: number; x: number; y: number | undefined; value: number; } | null) => void
-  selectedCell: { frame: number, col: number, row: number, value: number } | null
+  selectedCell: { frame: number, col: number, row: number} | null
 }
 
 export default function FlapHeatmap({
@@ -36,7 +36,7 @@ export default function FlapHeatmap({
   const interpolator = d3.scaleSequential([minValue, maxValue], d3.interpolateViridis)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const requestedTiles = useRef(new Set<string>())
-  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
+  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number} | null>(null)
   const [hoveredPoint, setHoveredPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
   const [showTooltips, setShowTooltips] = useState(true)
   const [showLegend, setShowLegend] = useState(true)
@@ -181,8 +181,7 @@ export default function FlapHeatmap({
     } else {
       setSelectedPoint({
         frame: selectedCell.frame,
-        index: selectedCell.col * numRows + selectedCell.row,
-        value: selectedCell.value
+        index: selectedCell.col * numRows + selectedCell.row
       })
     }
 
@@ -196,7 +195,7 @@ export default function FlapHeatmap({
         if (prev === null || (point.frame !== prev.frame && point.index !== prev.index)) {
           const value = getValueFromTileCache(point.frame, point.index)
           if (value !== undefined && (prev === null || value !== prev.value)) {
-            setSelectedPoint({ ...point, value })
+            setSelectedPoint(point)
             onPointSelect({ frame: point.frame, x: point.index, y: undefined, value: value })
           }
         }

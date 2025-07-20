@@ -4,9 +4,7 @@ import { useRef, useEffect, useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown } from "lucide-react"
 import ControlBar from "../controls/control-bar"
-import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import { drawFlatHeatmapFromBuffer } from "@/utils"
-import { fetchTile } from "@/api/slope/fetchTile"
 import { useCanvasInteractions } from "@/hooks/use-canvas-interactions"
 import * as d3 from "d3"
 
@@ -16,23 +14,27 @@ const CELL_SIZE = 6
 interface TileHeatmapProps {
   numFrames: number
   numIndexes: number
+  dim: number
   minValue: number
   maxValue: number
   onPointSelect: (point: { frame: number, index: number } | null) => void
+  onFetchTile: (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => Promise<number[][][]>
   selectedPoint: { frame: number, index: number } | null
 }
 
 export default function TileHeatmap({
   numFrames,
   numIndexes,
+  dim,
   minValue,
   maxValue,
   onPointSelect,
+  onFetchTile,
   selectedPoint
 }: TileHeatmapProps) {
-  const tileCache = useRef(new Map<string, { canvas: HTMLCanvasElement; frameStart: number; indexStart: number, tileData: number[][] }>())
+  const tileCache = useRef(new Map<string, { canvas: HTMLCanvasElement; frameStart: number; indexStart: number, tile: number[][] }>())
   const interpolator = d3.scaleSequential([minValue, maxValue], d3.interpolateViridis)
-  const canvasRefs = useRef<[HTMLCanvasElement | null, HTMLCanvasElement | null]>([null, null])
+  const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([])
   const requestedTiles = useRef(new Set<string>())
   const [hoveredPoint, setHoveredPoint] = useState<{ frame: number, index: number, values: number[] } | null>(null)
   const [showTooltips, setShowTooltips] = useState(true)
@@ -40,24 +42,25 @@ export default function TileHeatmap({
   const [showControlBar, setShowControlBar] = useState(true)
   const prevPointRef = useRef<{ frame: number, index: number } | null>(null)
   const lastVisibleKeys = useRef<Set<string>>(new Set())
-  const { intervalType, scaleType } = useChartInteraction()
 
   const pendingTiles = useRef<Set<string>>(new Set())
 
   const queueVisibleTileFetches = useCallback((tiles: ReturnType<typeof getVisibleTiles>) => {
-    tiles.forEach(tile => {
-      const key = tile.key
-      if (!tileCache.current.has(key) && !requestedTiles.current.has(key)) {
-        pendingTiles.current.add(key)
+    tiles.forEach((tile) => {
+
+      for (let d = 0; d < dim; d++) {
+        const key = tile.key
+        const fullKey = `${key}:${d}`
+        if (!tileCache.current.has(fullKey) && !requestedTiles.current.has(fullKey)) {
+          pendingTiles.current.add(key)
+        }
       }
     })
-  }, [])
+  }, [requestedTiles, tileCache, pendingTiles])
 
   useEffect(() => {
     const interval = setInterval(() => {
       const tilesToFetch = Array.from(pendingTiles.current)
-      pendingTiles.current.clear()
-
       tilesToFetch.forEach((key) => {
         const [frameRange, indexRange] = key.split(":")
         const [frameStart, frameEnd] = frameRange.split("-").map(Number)
@@ -65,22 +68,20 @@ export default function TileHeatmap({
 
         fetchAndRenderTile(frameStart, frameEnd, indexStart, indexEnd)
       })
+
+      pendingTiles.current.clear()
     }, 100)
 
     return () => clearInterval(interval)
   }, [])
 
-  const getVisibleTiles = (
-    offset: { x: number; y: number },
-    zoom: number,
-    width: number,
-    height: number
-  ) => {
-    const frameStart = Math.floor(-offset.x / (CELL_SIZE * zoom * TILE_SIZE)) * TILE_SIZE
-    const indexStart = Math.floor(-offset.y / (CELL_SIZE * zoom * TILE_SIZE)) * TILE_SIZE
+  const getVisibleTiles = (offset: { x: number; y: number }, zoom: number, width: number, height: number) => {
+    const tilePixelSize = CELL_SIZE * zoom * TILE_SIZE
+    const frameStart = Math.floor(-offset.x / tilePixelSize) * TILE_SIZE
+    const indexStart = Math.floor(-offset.y / tilePixelSize) * TILE_SIZE
 
-    const cols = Math.ceil(width / (CELL_SIZE * zoom * TILE_SIZE)) + 1
-    const rows = Math.ceil(height / (CELL_SIZE * zoom * TILE_SIZE)) + 1
+    const cols = Math.ceil(width / tilePixelSize) + 1
+    const rows = Math.ceil(height / tilePixelSize) + 1
 
     const tiles = []
     for (let i = 0; i < cols; i++) {
@@ -105,82 +106,77 @@ export default function TileHeatmap({
   }
 
   const fetchAndRenderTile = async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
-    const keyX = `${frameStart}-${frameEnd}:${indexStart}-${indexEnd}:X`
-    const keyY = `${frameStart}-${frameEnd}:${indexStart}-${indexEnd}:Y`
-    if (tileCache.current.has(keyX) || tileCache.current.has(keyY)) return
-
-    requestedTiles.current.add(keyX)
-    requestedTiles.current.add(keyY)
+    const keys: string[] = []
+    console.log("Cache before fetch: ", tileCache.current)
+    for (let d = 0; d < dim; d++) {
+      const key = `${frameStart}-${frameEnd}:${indexStart}-${indexEnd}:${d}`
+      if (tileCache.current.has(key)) continue
+      keys.push(key)
+      requestedTiles.current.add(key)
+    }
+    if (keys.length === 0) {
+      return
+    }
+    console.log("Keys: ", keys)
 
     try {
-      const json = await fetchTile({
-        frameStart,
-        frameEnd,
-        indexStart,
-        indexEnd,
-        wfsIndex: 0,
-        scaleType: scaleType,
-        intervalType: intervalType
-      })
+      const tiles = await onFetchTile(frameStart, frameEnd, indexStart, indexEnd)
 
-      const tileDataX = json.tileX
-      const tileDataY = json.tileY
+      for (let d = 0; d < dim; d++) {
+        const canvas = document.createElement("canvas")
+        const tile = tiles[d]
+        canvas.width = tile.length * CELL_SIZE
+        canvas.height = tile[0].length * CELL_SIZE
+        const ctx = canvas.getContext("2d")!
 
-      const canvasX = document.createElement("canvas")
-      const canvasY = document.createElement("canvas")
-      canvasX.width = tileDataX.length * CELL_SIZE
-      canvasX.height = tileDataX[0].length * CELL_SIZE
-      canvasY.width = tileDataY.length * CELL_SIZE
-      canvasY.height = tileDataY[1].length * CELL_SIZE
-      const ctxX = canvasX.getContext("2d")!
-      const ctxY = canvasY.getContext("2d")!
-
-      for (let i = 0; i < tileDataX.length; i++) {
-        for (let j = 0; j < tileDataX[i].length; j++) {
-          ctxX.fillStyle = interpolator(tileDataX[i][j])
-          ctxX.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
-
-          ctxY.fillStyle = interpolator(tileDataY[i][j])
-          ctxY.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+        for (let i = 0; i < tile.length; i++) {
+          for (let j = 0; j < tile[i].length; j++) {
+            ctx.fillStyle = interpolator(tile[i][j])
+            ctx.fillRect(i * CELL_SIZE, j * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+          }
         }
+        tileCache.current.set(keys[d], {
+          canvas,
+          frameStart,
+          indexStart,
+          tile
+        })
       }
 
-      tileCache.current.set(keyX, { canvas: canvasX, frameStart, indexStart, tileData: tileDataX })
-      tileCache.current.set(keyY, { canvas: canvasY, frameStart, indexStart, tileData: tileDataY })
+
       scheduleDraw()
-    } finally {
-      requestedTiles.current.delete(keyX)
-      requestedTiles.current.delete(keyY)
+    }
+    finally {
+      console.log("Cache after adding: ", tileCache.current)
+      for (const key of keys) {
+        requestedTiles.current.delete(key)
+      }
     }
   }
 
   const draw = useCallback((canvases: HTMLCanvasElement[], offset: { x: number; y: number }, zoom: number) => {
-    const canvasX = canvases[0]
-    const canvasY = canvases[1]
-    const ctxX = canvasX.getContext("2d")
-    const ctxY = canvasY.getContext("2d")
-    if (!ctxX || !ctxY) return
-
-    const visible = getVisibleTiles(offset, zoom, canvasX.width, canvasX.height)
+    const visible = getVisibleTiles(offset, zoom, canvases[0].width, canvases[0].height)
     const visibleKeys = new Set(visible.map(t => t.key))
     lastVisibleKeys.current = visibleKeys
 
-    const buffersX = visible
-      .map(({ key }) => tileCache.current.get(key + ":X"))
-      .filter(Boolean) as { canvas: HTMLCanvasElement; frameStart: number; indexStart: number }[]
-    const buffersY = visible
-      .map(({ key }) => tileCache.current.get(key + ":Y"))
-      .filter(Boolean) as { canvas: HTMLCanvasElement; frameStart: number; indexStart: number }[]
+    const ctxs = canvases.map(canvas => canvas.getContext("2d"))
+    if (ctxs.some(ctx => !ctx)) return
 
-    drawFlatHeatmapFromBuffer(ctxX, offset, zoom, buffersX, CELL_SIZE, numFrames, numIndexes, selectedPoint || undefined)
-    drawFlatHeatmapFromBuffer(ctxY, offset, zoom, buffersY, CELL_SIZE, numFrames, numIndexes, selectedPoint || undefined)
+    for (let d = 0; d < canvases.length; d++) {
+      const ctx = ctxs[d]!
+      const buffers = visible
+        .map(({ key }) => tileCache.current.get(`${key}:${d}`))
+        .filter(Boolean) as { canvas: HTMLCanvasElement; frameStart: number; indexStart: number }[]
+
+      drawFlatHeatmapFromBuffer(ctx, offset, zoom, buffers, CELL_SIZE, numFrames, numIndexes, selectedPoint || undefined)
+    }
 
     queueVisibleTileFetches(visible)
 
     for (const key of tileCache.current.keys()) {
-      if (!lastVisibleKeys.current.has(key)) {
-        tileCache.current.delete(key + ":X")
-        tileCache.current.delete(key + ":Y")
+      const baseKey = key.split(":").slice(0, 2).join(":")
+      if (!lastVisibleKeys.current.has(baseKey)) {
+        tileCache.current.delete(key)
       }
     }
   }, [selectedPoint])
@@ -191,8 +187,6 @@ export default function TileHeatmap({
     = useCanvasInteractions({ externalCanvasRefs: canvasRefs, draw })
 
   useEffect(() => {
-    console.log("POINT CHANGED", selectedPoint)
-
     scheduleDraw()
   }, [selectedPoint])
 
@@ -242,15 +236,15 @@ export default function TileHeatmap({
     return `linear-gradient(to top, ${colorStops.join(', ')})`
   }
 
-  const getPointFromCoordinates = useCallback((canvasX: number, canvasY: number) => {
-    const canvas = canvasRefs.current[1]
+  const getPointFromCoordinates = useCallback((xCoord: number, yCoord: number) => {
+    const canvas = canvasRefs.current[0]
     if (!canvas) return null
 
     const zoomLevel = zoomRef.current
     const offset = offsetRef.current
 
-    const x = (canvasX - offset.x) / zoomLevel
-    const y = (canvasY - offset.y) / zoomLevel
+    const x = (xCoord - offset.x) / zoomLevel
+    const y = (yCoord - offset.y) / zoomLevel
 
     const frame = Math.floor(x / CELL_SIZE)
     const index = Math.floor(y / CELL_SIZE)
@@ -260,20 +254,24 @@ export default function TileHeatmap({
     return { frame, index }
   }, [zoomRef, offsetRef, canvasRefs])
 
-  function getValueFromTileCache(frame: number, index: number): [number, number] | undefined {
+  function getValueFromTileCache(frame: number, index: number): number[] | undefined {
     const frameTile = Math.floor(frame / TILE_SIZE) * TILE_SIZE
     const indexTile = Math.floor(index / TILE_SIZE) * TILE_SIZE
-    const keyX = `${frameTile}-${frameTile + TILE_SIZE}:${indexTile}-${indexTile + TILE_SIZE}:X`
-    const keyY = `${frameTile}-${frameTile + TILE_SIZE}:${indexTile}-${indexTile + TILE_SIZE}:Y`
-    const tileX = tileCache.current.get(keyX)
-    const tileY = tileCache.current.get(keyY)
-    if (!tileX || !tileY) return undefined
 
+    const values: number[] = []
     const i = frame - frameTile
     const j = index - indexTile
-    const valueX = tileX.tileData[i][j]
-    const valueY = tileY.tileData[i][j]
-    return [valueX, valueY]
+
+    for (let d = 0; d < dim; d++) {
+      const key = `${frameTile}-${frameTile + TILE_SIZE}:${indexTile}-${indexTile + TILE_SIZE}:${d}`
+      const tile = tileCache.current.get(key)
+      if (!tile) return undefined
+
+
+      values.push(tile.tile[i][j])
+    }
+
+    return values
   }
 
   return (
@@ -307,7 +305,7 @@ export default function TileHeatmap({
       <div className="flex-1 relative min-h-0">
         <div className="w-full h-full border-2 border-gray-300 relative">
           <div className="flex flex-row h-full gap-2 border-2 border-gray-300 relative">
-            {canvasRefs.current.map((_, idx) => (
+            {Array.from({ length: dim }).map((_, idx) => (
               <canvas
                 key={idx}
                 ref={(el) => { canvasRefs.current[idx] = el }}

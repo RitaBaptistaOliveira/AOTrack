@@ -104,8 +104,7 @@ async def get_flat_tile_post(request: Request):
         gc.collect()
 
         return JSONResponse({
-            "tileX": x_sliced.tolist(),
-            "tileY": y_sliced.tolist()
+            "tiles": [x_sliced.tolist(), y_sliced.tolist()]
         })
     except Exception as e:
         print(f"Tile fetch error: {e}")
@@ -131,7 +130,7 @@ async def get_slope_meta(request: Request):
             raise HTTPException(status_code=400, detail=f"wfs_index {wfs_index} out of range")
 
         measurements = sensor.measurements.data
-        num_frames, _, num_indices = measurements.shape
+        num_frames, dim, num_indices = measurements.shape
         overall_min = float(np.min(measurements))
         overall_max = float(np.max(measurements))
         num_rows = None
@@ -149,6 +148,7 @@ async def get_slope_meta(request: Request):
         response = {
             "num_frames": num_frames,
             "num_indices": num_indices,
+            "dim": dim,
             "overall_min": overall_min,
             "overall_max": overall_max
         }

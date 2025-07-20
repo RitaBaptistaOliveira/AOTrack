@@ -10,6 +10,7 @@ import DualHistogram from '@/components/dual-charts/hist-chart'
 import { Card } from '@/components/ui/card'
 import { LineChart, BarChart3 } from "lucide-react"
 import { useAoSession } from '@/contexts/ao-session-context'
+import { fetchTile } from '@/api/slope/fetchTile'
 
 export default function Measurements() {
   const { wfs } = useAoSession()
@@ -23,6 +24,7 @@ export default function Measurements() {
   const [meta, setMeta] = useState<{
     numFrames: number
     numIndices: number
+    dim: number
     overallMin: number
     overallMax: number
     numCols?: number
@@ -48,7 +50,6 @@ export default function Measurements() {
         console.warn("Invalid mask access at", col, row)
         return
       } else {
-        console.log("Setting point")
         setSelectedPoint({
           frame: selected.frame,
           index: index
@@ -56,7 +57,6 @@ export default function Measurements() {
         await frameBuffer.fetchPointData(index)
       }
     } else {
-      console.log("Point null")
       setSelectedPoint(null)
       frameBuffer.setPointData(undefined)
     }
@@ -90,6 +90,26 @@ export default function Measurements() {
     setCurrentFrame(frame)
     setSelectedCell(prev => prev ? { ...prev, frame } : null)
     setSelectedPoint(prev => prev ? { ...prev, frame } : null)
+  }, [])
+
+  const handleFetchTile = useCallback(async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
+    try {
+      const json = await fetchTile({
+        frameStart,
+        frameEnd,
+        indexStart,
+        indexEnd,
+        wfsIndex: wfs,
+        scaleType: scaleType,
+        intervalType: intervalType
+      })
+
+      return json.tiles
+    } 
+    catch (err) {
+      console.warn("Fetch tiles error:", err)
+    }
+    return []
   }, [])
 
   useEffect(() => {
@@ -126,9 +146,11 @@ export default function Measurements() {
           <TileHeatmap
             numFrames={meta.numFrames}
             numIndexes={meta.numIndices}
+            dim={meta.dim}
             minValue={meta.overallMin}
             maxValue={meta.overallMax}
             onPointSelect={handlePointSelect}
+            onFetchTile={handleFetchTile}
             selectedPoint={selectedPoint}
           />
         }

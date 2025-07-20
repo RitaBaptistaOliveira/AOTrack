@@ -2,8 +2,9 @@ import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dash
 import { useCallback, useEffect, useState } from 'react'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useFrameBuffer } from "@/hooks/use-frame-buffer"
-import Visualization from '@/components/charts/heatmap-chart'
+// import Visualization from '@/components/charts/heatmap-chart'
 import FlapHeatmap from '@/components/charts/heatmap-flat-chart-c'
+import Heatmap from '@/components/dual-charts/heatmap-chart'
 import D3LineChart from '@/components/charts/line-chart'
 import Histogram from '@/components/charts/hist-chart'
 import StatTable from '@/components/charts/stat-table'
@@ -13,11 +14,11 @@ import { useAoSession } from '@/contexts/ao-session-context'
 
 
 export default function Pixels() {
-  const {wfs} = useAoSession()
+  const { wfs } = useAoSession()
   const frameBuffer = useFrameBuffer(wfs)
   const [currentFrame, setCurrentFrame] = useState(0)
-  const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number, value: number } | null>(null)
-  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
+  const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number } | null>(null)
+  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number } | null>(null)
   const currentFrameData = frameBuffer.getFrame(currentFrame)
   const { scaleType, intervalType } = useChartInteraction()
 
@@ -35,42 +36,43 @@ export default function Pixels() {
     }
   }, [frameBuffer.meta])
 
+  const handleCellSelect = useCallback(async (selected: { frame: number, col: number, row: number } | null) => {
+    setSelectedCell(selected)
+    if (selected && meta) {
+      const col = selected.col
+      const row = selected.row
+      const index = col * meta.numRows + row
+      setSelectedPoint({
+        frame: selected.frame,
+        index: index
+      })
+      await frameBuffer.fetchPointData(col, row)
+    } else {
+      setSelectedPoint(null)
+      frameBuffer.setPointData(undefined)
+    }
+  }, [meta])
+
   const handleSelect = useCallback(async (selected: { frame: number, x: number; y: number | undefined; value: number } | null) => {
     if (selected && meta) {
-      console.log("Selected:" , selected)
       const numRows = meta.numRows
 
       if (typeof selected.y === 'number') {
-        setCurrentFrame(selected.frame)
-        setSelectedCell({
-          frame: selected.frame,
-          col: selected.x,
-          row: selected.y,
-          value: selected.value,
-        })
-        setSelectedPoint({
-          frame: selected.frame,
-          index: selected.x * numRows + selected.y,
-          value: selected.value,
-        })
-        await frameBuffer.fetchPointData(selected.x, selected.y)
       }
       else {
         const col = Math.floor(selected.x / numRows)
         const row = selected.x % numRows
         console.log("Selected cell at col:", col, "row:", row, "value:", selected.value)
-        
+
         setCurrentFrame(selected.frame)
         setSelectedCell({
           frame: selected.frame,
           col: col,
-          row: row,
-          value: selected.value,
+          row: row
         })
         setSelectedPoint({
           frame: selected.frame,
-          index: selected.x,
-          value: selected.value
+          index: selected.x
         })
         await frameBuffer.fetchPointData(col, row)
       }
@@ -96,16 +98,16 @@ export default function Pixels() {
 
       <GridItem area="a">
         {frameBuffer && meta && (
-          <Visualization
-            data={currentFrameData ? currentFrameData : []}
+          <Heatmap
+            data={currentFrameData ? [currentFrameData] : []}
             numRows={meta.numRows}
             numCols={meta.numCols}
             numFrames={meta.numFrames}
             minValue={meta.overallMin}
             maxValue={meta.overallMax}
-            onCellSelect={handleSelect}
+            onCellSelect={handleCellSelect}
             onFrameChange={handleFrameChange}
-            selectedPoint={selectedPoint}
+            selectedCell={selectedCell}
           />
         )}
         <></>
