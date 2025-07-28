@@ -56,7 +56,6 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
       })
 
       const data = await res.json()
-      console.log("Slope meta data:", data.subaperture_mask)
       setMeta({
         numFrames: data.num_frames,
         numIndices: data.num_indices,

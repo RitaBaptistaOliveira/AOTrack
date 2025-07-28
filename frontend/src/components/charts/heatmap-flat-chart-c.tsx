@@ -123,8 +123,6 @@ export default function FlapHeatmap({
         intervalType: intervalType
       })
       const tileData = json.tile
-      console.log(`Fetched tile ${key} with size ${tileData.length}x${tileData[0].length}`)
-      console.log(`Tile data:`, tileData)
       const canvas = document.createElement("canvas")
       canvas.width = tileData.length * CELL_SIZE
       canvas.height = tileData[0].length * CELL_SIZE

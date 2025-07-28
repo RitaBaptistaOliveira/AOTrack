@@ -12,7 +12,7 @@ export function BreadcrumbNav() {
   const label = section?.charAt(0).toUpperCase() + section?.slice(1).replace(/-/g, " ")
   const [selected, setSelected] = useState<string>("")
   const [items, setItems] = useState<string[]>([])
-  console.log(metadataSummary)
+
 
   useEffect(() => {
     if (!metadataSummary) return
@@ -53,8 +53,6 @@ export function BreadcrumbNav() {
         setWfc(index)
         break
     }
-
-    console.log(index)
   }
 
   if (!section) return null

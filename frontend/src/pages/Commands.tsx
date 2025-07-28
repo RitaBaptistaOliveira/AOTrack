@@ -97,8 +97,6 @@ export default function Commands() {
 
   useEffect(() => {
     frameBuffer.preloadAround(currentFrame, 5)
-    console.log(`Preloading frames around ${currentFrame} with scaleType: ${scaleType}, intervalType: ${intervalType}`)
-    console.log("Current frame data:", currentFrameData)
   }, [currentFrame, scaleType, intervalType])
 
   return (

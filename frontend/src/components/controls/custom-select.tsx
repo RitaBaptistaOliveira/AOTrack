@@ -65,7 +65,6 @@ export default function CustomSelectWithInput({ value, onValueChange }: CustomSe
                 }
             }
 
-            event.stopPropagation()
         }
 
         if (isOpen) {
@@ -158,7 +157,7 @@ export default function CustomSelectWithInput({ value, onValueChange }: CustomSe
                     <div
                         ref={portalContentRef} // Attach portalContentRef here
                         className="mt-1 absolute z-50 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
-                        style={{ top: position.top, left: position.left}}
+                        style={{ top: position.top, left: position.left }}
                     >
                         <div
                             className={cn(
@@ -209,7 +208,7 @@ export default function CustomSelectWithInput({ value, onValueChange }: CustomSe
                                     onBlur={validateAndCommitPercentile}
                                     onKeyDown={handleInputKeyDown}
                                     onFocus={handlePercentileInputFocus}
-                                    onClick={(e: { stopPropagation: () => any }) => e.stopPropagation()}
+                                    onClick={(e) => e.stopPropagation()}
                                     className="w-10 h-5 text-center text-xs p-1 "
                                 />
                                 {currentSelectedOption === "percentile" && (

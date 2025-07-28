@@ -37,6 +37,5 @@ export async function fetchPointStats({
     throw new Error(`Point stats fetch failed: ${res.statusText}`)
   }
   const json = await res.json()
-  console.log("Point stats fetched successfully:", json)
   return json
 }

@@ -123,8 +123,6 @@ export default function FlapHeatmap({
         intervalType: intervalType
       })
       const tileData = json.tile
-      console.log(`Fetched tile ${key} with size ${tileData.length}x${tileData[0].length}`)
-      console.log(`Tile data:`, tileData)
       const canvas = document.createElement("canvas")
       canvas.width = tileData.length * CELL_SIZE
       canvas.height = tileData[0].length * CELL_SIZE
@@ -251,12 +249,7 @@ export default function FlapHeatmap({
 
     const i = frame - frameTile
     const j = index - indexTile
-    console.log(`Fetching value from tile cache for key: ${key}, frame: ${frame}, index: ${index}`)
-    console.log(`i: ${i}, j: ${j}`)
     const value = tile.tileData[i][j]
-    console.log(`Tile data for key ${key}:`, tile.tileData)
-    console.log(`Value from tile cache: ${value}`)
-
     return value !== undefined ? value : undefined
   }
 

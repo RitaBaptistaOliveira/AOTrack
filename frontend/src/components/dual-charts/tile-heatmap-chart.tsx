@@ -107,7 +107,6 @@ export default function TileHeatmap({
 
   const fetchAndRenderTile = async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
     const keys: string[] = []
-    console.log("Cache before fetch: ", tileCache.current)
     for (let d = 0; d < dim; d++) {
       const key = `${frameStart}-${frameEnd}:${indexStart}-${indexEnd}:${d}`
       if (tileCache.current.has(key)) continue
@@ -117,7 +116,6 @@ export default function TileHeatmap({
     if (keys.length === 0) {
       return
     }
-    console.log("Keys: ", keys)
 
     try {
       const tiles = await onFetchTile(frameStart, frameEnd, indexStart, indexEnd)
@@ -147,7 +145,6 @@ export default function TileHeatmap({
       scheduleDraw()
     }
     finally {
-      console.log("Cache after adding: ", tileCache.current)
       for (const key of keys) {
         requestedTiles.current.delete(key)
       }

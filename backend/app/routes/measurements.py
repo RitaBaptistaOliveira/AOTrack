@@ -18,8 +18,6 @@ async def get_slope_frame(request: Request):
 
     wfs_index = int(form.get("wfs_index", 0))
     frame_index = int(form.get("frame_index", 0))
-    interval_type = form.get("interval_type", "minmax")
-    scale_type = form.get("scale_type", "linear")
 
     try:
         system = aotpy.AOSystem.read_from_file(session.file_path)
@@ -40,12 +38,12 @@ async def get_slope_frame(request: Request):
         measurement_indices = subaperture_mask[row_indices, col_indices]
         outputX = np.full(subaperture_mask.shape, np.nan)
         outputX[row_indices, col_indices] = measurements_x[measurement_indices]
+        outputX = np.where(np.isnan(outputX), None, outputX)
+        
         outputY = np.full(subaperture_mask.shape, np.nan)
         outputY[row_indices, col_indices] = measurements_y[measurement_indices]
-        processed_x = process_frame(scale_type, interval_type, outputX)
-        processed_y = process_frame(scale_type, interval_type, outputY)
-        outputX = np.where(np.isnan(processed_x), None, processed_x)
-        outputY = np.where(np.isnan(processed_y), None, processed_y)
+        outputY = np.where(np.isnan(outputY), None, outputY)
+        
         del system
         gc.collect()
     except Exception as e:
@@ -69,8 +67,6 @@ async def get_flat_tile_post(request: Request):
     index_start = int(form.get("index_start"))
     index_end = int(form.get("index_end"))
     wfs_index = int(form.get("wfs_index", 0))
-    interval_type = form.get("interval_type", "minmax")
-    scale_type = form.get("scale_type", "linear")
     
     if frame_end <= frame_start:
         raise HTTPException(status_code=400, detail="Invalid frame range")
@@ -94,11 +90,8 @@ async def get_flat_tile_post(request: Request):
         frame_end = min(frame_end, num_frames)
         index_end = min(index_end, num_index)
 
-
-        transformedX = process_frame(scale_type, interval_type, x_measurements)
-        transformedY = process_frame(scale_type, interval_type, y_measurements)
-        x_sliced = transformedX[frame_start:frame_end, index_start:index_end]
-        y_sliced = transformedY[frame_start:frame_end, index_start:index_end]
+        x_sliced = x_measurements[frame_start:frame_end, index_start:index_end]
+        y_sliced = y_measurements[frame_start:frame_end, index_start:index_end]
 
         del system
         gc.collect()

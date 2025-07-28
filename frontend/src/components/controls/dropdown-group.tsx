@@ -25,32 +25,13 @@ export default function DropdownGroup() {
           <SelectItem value="linear">Linear</SelectItem>
           <SelectItem value="log">Log</SelectItem>
           <SelectItem value="sqrt">Square Root</SelectItem>
-          <SelectItem value="pow">Power</SelectItem>
           <SelectItem value="squared">Squared</SelectItem>
           <SelectItem value="asinh">ASINH</SelectItem>
           <SelectItem value="sinh">Sinh</SelectItem>
-          <SelectItem value="histequal">Hist Eq.</SelectItem>
+          {/* <SelectItem value="histequal">Hist Eq.</SelectItem> */}
           <SelectItem value="logexp">Log Exp</SelectItem>
         </SelectContent>
       </Select>
-
-      {/* <Select value={intervalType} onValueChange={(value) => { setIntervalType(value as IntervalType)}}>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <SelectTrigger className="h-8 text-xs w-24">
-                <SelectValue placeholder="Interval" />
-              </SelectTrigger>
-            </TooltipTrigger>
-            <TooltipContent>Interval type</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <SelectContent>
-          <SelectItem value="minmax">MinMax</SelectItem>
-          <SelectItem value="zscale">Z-Scale</SelectItem>
-          <SelectItem value="percentile">Percentile</SelectItem>
-        </SelectContent>
-      </Select> */}
 
       <TooltipProvider>
         <Tooltip>

@@ -57,7 +57,6 @@ export function useCommandBuffer(loopIndex: number) {
             })
 
             const data = await res.json()
-            console.log("Meta data fetched:", data)
             setMeta(
                 {
                     numFrames: data.num_frames,
@@ -77,10 +76,7 @@ export function useCommandBuffer(loopIndex: number) {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const result = await fetchDefaultStats({
-                    loopIndex
-                })
-
+                const result = await fetchDefaultStats({loopIndex})
                 setStats({
                     min: result.min,
                     max: result.max,

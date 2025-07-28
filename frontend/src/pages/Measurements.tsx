@@ -45,7 +45,6 @@ export default function Measurements() {
       const row = selected.row
       const mask = meta?.subapertureMask
       const index = mask?.[col][row]
-      console.log(index)
       if (index === undefined || index === -1) {
         console.warn("Invalid mask access at", col, row)
         return

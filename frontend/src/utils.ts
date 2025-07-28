@@ -4,12 +4,11 @@ export function drawHeatmap(
     canvas: HTMLCanvasElement,
     offset: { x: number, y: number },
     zoom: number,
-
     data: number[][],
     numRows: number,
     numCols: number,
     selectedCell: { col: number; row: number } | null,
-    interpolator: d3.ScaleSequential<string, never>
+    scale: (value: number) => string
 ) {
     if (!data) {
         return
@@ -31,12 +30,11 @@ export function drawHeatmap(
 
     for (let row = 0; row < numRows; row++) {
         for (let col = 0; col < numCols; col++) {
-            const value = data[row]?.[col]
+            const value = data[col]?.[row]
             if (value === null || value === undefined) {
-                // Don't draw or draw transparent
                 continue;
             }
-            ctx.fillStyle = interpolator(value)
+            ctx.fillStyle = scale(value)
             ctx.fillRect(col * cellWidth, row * cellHeight, cellWidth, cellHeight)
 
         }

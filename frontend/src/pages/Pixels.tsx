@@ -62,7 +62,6 @@ export default function Pixels() {
       else {
         const col = Math.floor(selected.x / numRows)
         const row = selected.x % numRows
-        console.log("Selected cell at col:", col, "row:", row, "value:", selected.value)
 
         setCurrentFrame(selected.frame)
         setSelectedCell({
@@ -89,8 +88,6 @@ export default function Pixels() {
 
   useEffect(() => {
     frameBuffer.preloadAround(currentFrame, 5)
-    console.log(`Preloading frames around ${currentFrame} with scaleType: ${scaleType}, intervalType: ${intervalType}`)
-    console.log("Current frame data:", currentFrameData)
   }, [currentFrame, scaleType, intervalType])
 
   return (
