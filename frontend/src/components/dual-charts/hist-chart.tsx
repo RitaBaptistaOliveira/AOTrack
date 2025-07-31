@@ -8,8 +8,11 @@ import { TrendingUp, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip"
 import { Input } from "../ui/input"
+import { themeColorMap } from "@/utils/color-themes"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
 
-const DualHistogram: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], data2X = [], data2Y = [], config1, config2}) => {
+const DualHistogram: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], data2X = [], data2Y = [], config1, config2 }) => {
+  const { colorMap } = useChartInteraction()
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
@@ -22,13 +25,13 @@ const DualHistogram: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
 
   const margin = { top: 5, right: 10, bottom: 40, left: 40 }
 
-  const colors = ["#3b82f6", "#009E73", "#ef4444", "#F0E442"]
+  const colors = themeColorMap[colorMap]
 
   const datasets = [
-    { data: data1X, config: config1, key: "line1", color: colors[0], name: "X" },
-    { data: data1Y, config: config1, key: "line1", color: colors[1], name: "Y" },
-    { data: data2X, config: config2, key: "line2", color: colors[2], name: "X" },
-    { data: data2Y, config: config2, key: "line2", color: colors[3], name: "Y" },
+    { data: data1X, config: config1, key: "line1", color: colors.point1[0], name: "X" },
+    { data: data1Y, config: config1, key: "line1", color: colors.point1[1], name: "Y" },
+    { data: data2X, config: config2, key: "line2", color: colors.point2[0], name: "X" },
+    { data: data2Y, config: config2, key: "line2", color: colors.point2[1], name: "Y" },
   ] as const
 
   // Determine what should be rendered
@@ -310,6 +313,16 @@ const DualHistogram: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
               .attr("width", (d: any) => Math.max(0, newXScale(d.x1) - newXScale(d.x0)))
           })
 
+          const highlight = svg.selectAll(".highlight-bar")
+          if (!highlight.empty() && highlight.style("display") !== "none") {
+            const x = +highlight.attr("data-x0");
+            const x1 = +highlight.attr("data-x1");
+
+            highlight
+              .attr("x", newXScale(x))
+              .attr("width", Math.max(0, newXScale(x1) - newXScale(x)))
+          }
+
           // Update KDE curves
           const lineGenerator = d3
             .line<{ x: number; y: number }>()
@@ -382,9 +395,9 @@ const DualHistogram: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
         .attr("x", width / 2)
         .attr("y", height - 5)
         .attr("text-anchor", "middle")
-        .style("font-size", "12px")
+        .style("font-size", "16px")
         .style("font-weight", "500")
-        .style("fill", "#666")
+        .style("fill", "#333")
         .text("Measurement Value")
 
       svg
@@ -393,10 +406,22 @@ const DualHistogram: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
         .attr("y", 12)
         .attr("text-anchor", "middle")
         .attr("transform", "rotate(-90)")
-        .style("font-size", "12px")
+        .style("font-size", "16px")
         .style("font-weight", "500")
-        .style("fill", "#666")
+        .style("fill", "#333")
         .text("Count")
+
+      // Draw hidden bar highlighting rectangle
+      chartContent.append("rect")
+        .attr("class", "highlight-bar")
+        .attr("stroke", "black")
+        .attr("stroke-width", 2)
+        .attr("opacity", 1)
+        .attr("pointer-events", "none")
+        .style("mix-blend-mode", "normal")
+        .attr("data-x0", null)
+        .attr("data-x1", null)
+        .style("display", "none")
 
       // Draw bars for each dataset (overlapping)
       datasetBins.forEach(({ dataset, bins }) => {
@@ -411,10 +436,10 @@ const DualHistogram: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
           .attr("width", (d) => Math.max(0, initialXScale(d.x1!) - initialXScale(d.x0!)))
           .attr("height", (d) => innerHeight - yScale(d.length))
           .attr("fill", dataset.color)
-          .attr("opacity", 0.5)
-          .attr("stroke", dataset.color)
-          .attr("stroke-width", 0.5)
-          .style("mix-blend-mode", "overlay")
+          .attr("opacity", 0.75)
+          .attr("stroke", "black")
+          .attr("stroke-width", 1)
+          .style("mix-blend-mode", "difference")
           .style("display", visibleLines[dataset.key as keyof typeof visibleLines] ? "block" : "none")
       })
 
@@ -461,20 +486,49 @@ const DualHistogram: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
 
       // Helper function to highlight bars
       const highlightBars = (binRange: { x0: number; x1: number; datasets: Array<{ dataset: any; bin: any }> }) => {
+        let overlapped = { name: null, key: null, count: Infinity }
+        binRange.datasets.forEach(({ dataset, bin }) => {
+          if (overlapped.count > bin.length) {
+            overlapped = { name: dataset.name, key: dataset.key, count: bin.length }
+          }
+        })
+
         binRange.datasets.forEach(({ dataset }) => {
-          svg
-            .selectAll(`.bar-${dataset.key}-${dataset.name}`)
+          svg.selectAll(`.bar-${dataset.key}-${dataset.name}`)
             .filter((d: any) => d.x0 === binRange.x0 && d.x1 === binRange.x1)
-            .attr("opacity", 0.8)
+            .attr("opacity", 0.9)
             .attr("stroke-width", 2)
-        });
+        })
+        if (overlapped.name && overlapped.key) {
+          const original = svg.selectAll(`.bar-${overlapped.key}-${overlapped.name}`)
+            .filter((d: any) => d.x0 === binRange.x0 && d.x1 === binRange.x1)
+            .node()
+
+          if (original) {
+            const originalSelection = d3.select(original)
+            const highlight = svg.select<SVGRectElement>(".highlight-bar")
+            highlight
+              .attr("x", originalSelection.attr("x"))
+              .attr("y", originalSelection.attr("y"))
+              .attr("width", originalSelection.attr("width"))
+              .attr("height", originalSelection.attr("height"))
+              .attr("fill", originalSelection.attr("fill"))
+              .attr("data-x0", binRange.x0)
+              .attr("data-x1", binRange.x1)
+              .style("display", "inline")
+              .raise()
+          }
+        }
+
+
       }
 
       // Helper function to reset bar highlighting
       const resetBarHighlight = () => {
         datasetBins.forEach(({ dataset }) => {
-          svg.selectAll(`.bar-${dataset.key}-${dataset.name}`).attr("opacity", 0.5).attr("stroke-width", 0.5)
+          svg.selectAll(`.bar-${dataset.key}-${dataset.name}`).attr("opacity", 0.75).attr("stroke-width", 0.5)
         })
+        svg.selectAll(".highlight-bar").style("display", "none")
       }
 
       // Create hover areas for each unique bin range

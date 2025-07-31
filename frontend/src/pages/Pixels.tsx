@@ -2,15 +2,15 @@ import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dash
 import { useCallback, useEffect, useState } from 'react'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useFrameBuffer } from "@/hooks/use-frame-buffer"
-// import Visualization from '@/components/charts/heatmap-chart'
-import FlapHeatmap from '@/components/charts/heatmap-flat-chart-c'
 import Heatmap from '@/components/dual-charts/heatmap-chart'
-import D3LineChart from '@/components/charts/line-chart'
-import Histogram from '@/components/charts/hist-chart'
+import TileHeatmap from '@/components/dual-charts/tile-heatmap-chart'
+import LinesChart from '@/components/dual-charts/line-chart'
 import StatTable from '@/components/charts/stat-table'
+import DualHistogram from '@/components/dual-charts/hist-chart'
 import { Card } from '@/components/ui/card'
 import { LineChart, BarChart3 } from "lucide-react"
 import { useAoSession } from '@/contexts/ao-session-context'
+import { fetchTile } from '@/api/pixel/fetchTile'
 
 
 export default function Pixels() {
@@ -53,48 +53,56 @@ export default function Pixels() {
     }
   }, [meta])
 
-  const handleSelect = useCallback(async (selected: { frame: number, x: number; y: number | undefined; value: number } | null) => {
+  const handlePointSelect = useCallback(async (selected: { frame: number, index: number } | null) => {
+    setSelectedPoint(selected)
     if (selected && meta) {
       const numRows = meta.numRows
-
-      if (typeof selected.y === 'number') {
-      }
-      else {
-        const col = Math.floor(selected.x / numRows)
-        const row = selected.x % numRows
-
-        setCurrentFrame(selected.frame)
-        setSelectedCell({
-          frame: selected.frame,
-          col: col,
-          row: row
-        })
-        setSelectedPoint({
-          frame: selected.frame,
-          index: selected.x
-        })
-        await frameBuffer.fetchPointData(col, row)
-      }
+      const index = selected.index
+      const frame = selected.frame
+      const col = Math.floor(index / numRows)
+      const row = index % numRows
+      setSelectedCell({ frame, col, row })
+      setCurrentFrame(frame)
+      await frameBuffer.fetchPointData(col, row)
     } else {
       setSelectedCell(null)
-      setSelectedPoint(null)
       frameBuffer.setPointData(undefined)
     }
-  }, [frameBuffer])
+  }, [meta])
 
   const handleFrameChange = useCallback((frame: number) => {
     setCurrentFrame(frame)
+    setSelectedCell(prev => prev ? { ...prev, frame } : null)
+    setSelectedPoint(prev => prev ? { ...prev, frame } : null)
+  }, [])
+
+  const handleFetchTile = useCallback(async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
+    try {
+      const json = await fetchTile({
+        frameStart,
+        frameEnd,
+        indexStart,
+        indexEnd,
+        wfsIndex: wfs
+      })
+      
+      return [json.tile]
+    }
+    catch (err) {
+      console.warn("Fetch tiles error:", err)
+    }
+    return []
   }, [])
 
   useEffect(() => {
-    frameBuffer.preloadAround(currentFrame, 5)
+    frameBuffer.preloadAround(currentFrame, 2)
   }, [currentFrame, scaleType, intervalType])
 
   return (
     <DashboardGrid variant="default">
 
       <GridItem area="a">
-        {frameBuffer && meta && (
+        {currentFrameData && meta && (
           <Heatmap
             data={currentFrameData ? [currentFrameData] : []}
             numRows={meta.numRows}
@@ -107,27 +115,31 @@ export default function Pixels() {
             selectedCell={selectedCell}
           />
         )}
-        <></>
       </GridItem>
+
       <GridItem area="b">
         {meta &&
-          <FlapHeatmap
+          <TileHeatmap
             numFrames={meta.numFrames}
-            numRows={meta.numRows}
             numIndexes={meta.numCols * meta.numRows}
+            dim={1}
             minValue={meta.overallMin}
             maxValue={meta.overallMax}
-            onPointSelect={handleSelect}
-            selectedCell={selectedCell}
-          />}
+            onPointSelect={handlePointSelect}
+            onFetchTile={handleFetchTile}
+            selectedPoint={selectedPoint}
+          />
+        }
 
       </GridItem>
       {frameBuffer.pointData ?
         <GridItem area="c">
           {frameBuffer.pointData &&
-            <D3LineChart
-              data1={frameBuffer.pointData?.point_means || []}
-              data2={[]}
+            <LinesChart
+              data1X={frameBuffer.pointData.point_means}
+              data1Y={[]}
+              data2X={[]}
+              data2Y={[]}
               config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
               config2={undefined}
             />
@@ -146,32 +158,31 @@ export default function Pixels() {
           </Card>
         </GridItem>
       }
-      {
-        frameBuffer.pointData ?
-          <GridItem area="d">
-            {frameBuffer.pointData && meta && (
-              <Histogram
-                data1={frameBuffer.pointData?.point_means || []}
-                data2={[]}
-                config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
-                config2={undefined}
-              />
-            )}
-          </GridItem>
-          :
-          <GridItem area="d" className='flex items-center justify-center'>
-            <Card className="p-6 text-center w-95 h-9/11">
-              <div className="flex justify-center mb-4">
-                <BarChart3 size={48} />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Intensities Distribution</h3>
-              <p className="text-foreground mb-4">
-                Click a <span className="font-semibold">Point</span> to show the histogram
-              </p>
-            </Card>
-          </GridItem>
-      }
 
+      {frameBuffer.pointData ?
+        <GridItem area="d">
+          <DualHistogram
+            data1X={frameBuffer.pointData.point_means}
+            data1Y={[]}
+            data2X={[]}
+            data2Y={[]}
+            config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
+            config2={undefined}
+          />
+        </GridItem>
+        :
+        <GridItem area="d" className='flex items-center justify-center'>
+          <Card className="p-6 text-center w-95 h-9/11">
+            <div className="flex justify-center mb-4">
+              <BarChart3 size={48} />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">Intensities Distribution</h3>
+            <p className="text-foreground mb-4">
+              Click a <span className="font-semibold">Point</span> to show the histogram
+            </p>
+          </Card>
+        </GridItem>
+      }
 
       <GridItem area="e">
         {frameBuffer.stats &&

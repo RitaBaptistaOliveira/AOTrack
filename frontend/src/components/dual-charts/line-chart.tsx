@@ -7,6 +7,8 @@ import type { DataPoint, LineChartProps2D } from "@/types/line"
 import { BarChart3 } from "lucide-react"
 import { Button } from "../ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip"
+import { themeColorMap } from "@/utils/color-themes"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
 
 interface Statistics {
     min: number
@@ -14,7 +16,8 @@ interface Statistics {
     avg: number
 }
 
-const DualLineChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], data2X = [], data2Y = [], config1, config2 }) => {
+const LinesChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], data2X = [], data2Y = [], config1, config2 }) => {
+    const { colorMap } = useChartInteraction()
     const containerRef = useRef<HTMLDivElement>(null)
     const svgRef = useRef<SVGSVGElement>(null)
     const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity) // Add this line
@@ -23,13 +26,13 @@ const DualLineChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
     const [showStats, setShowStats] = useState({ line1: false, line2: false })
 
     const margin = { top: 5, right: 10, bottom: 40, left: 55 }
-    const colors = ["#3b82f6", "#009E73", "#ef4444", "#F0E442"]
+    const colors = themeColorMap[colorMap]
 
     const datasets = [
-        { data: data1X, config: config1, key: "line1", color: colors[0], name: "X" },
-        { data: data1Y, config: config1, key: "line1", color: colors[1], name: "Y" },
-        { data: data2X, config: config2, key: "line2", color: colors[2], name: "X" },
-        { data: data2Y, config: config2, key: "line2", color: colors[3], name: "Y" },
+        { data: data1X, config: config1, key: "line1", color: colors.point1[0], name: "X" },
+        { data: data1Y, config: config1, key: "line1", color: colors.point1[1], name: "Y" },
+        { data: data2X, config: config2, key: "line2", color: colors.point2[0], name: "X" },
+        { data: data2Y, config: config2, key: "line2", color: colors.point2[1], name: "Y" },
     ] as const
 
     // Calculate statistics
@@ -63,28 +66,7 @@ const DualLineChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
             .attr("stroke", color)
             .attr("stroke-width", strokeWidth)
             .attr("stroke-dasharray", dashArray)
-            .attr("opacity", 0.7)
-    }
-
-    const createStatLabel = (
-        chartContent: d3.Selection<SVGGElement, unknown, null, undefined>,
-        yScale: d3.ScaleLinear<number, number>,
-        x: number,
-        value: number,
-        color: string,
-        anchor: "start" | "end",
-        label: string,
-        isBold = false,
-    ) => {
-        chartContent
-            .append("text")
-            .attr("x", x)
-            .attr("y", yScale(value) - 5)
-            .attr("text-anchor", anchor)
-            .style("font-size", "10px")
-            .style("fill", color)
-            .style("font-weight", isBold ? "bold" : "normal")
-            .text(`${label}: ${value.toFixed(1)}`)
+            .attr("opacity", 0.9)
     }
 
     const findClosestPoint = (
@@ -156,7 +138,7 @@ const DualLineChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
             // Create zoom behavior (only horizontal)
             const zoom = d3
                 .zoom<SVGSVGElement, unknown>()
-                .scaleExtent([1, 10])
+                .scaleExtent([1, 30])
                 .translateExtent([
                     [0, 0],
                     [width, height],
@@ -237,7 +219,7 @@ const DualLineChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
             // Add axis labels
             const axisLabels = [
                 { x: width / 2, y: height - 1, text: "Frames" },
-                { x: -height / 2, y: 10, text: "Motion", transform: "rotate(-90)" },
+                { x: -height / 2, y: 10, text: "Motion ", transform: "rotate(-90)" },
             ]
 
             axisLabels.forEach((label) => {
@@ -246,9 +228,9 @@ const DualLineChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
                     .attr("x", label.x)
                     .attr("y", label.y)
                     .attr("text-anchor", "middle")
-                    .style("font-size", "12px")
+                    .style("font-size", "16px")
                     .style("font-weight", "500")
-                    .style("fill", "#666")
+                    .style("fill", "#333")
                     .text(label.text)
                 if (label.transform) text.attr("transform", label.transform)
             })
@@ -268,9 +250,9 @@ const DualLineChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
                 // Add statistics lines
                 if (isShowingStats) {
                     const statConfigs = [
-                        { value: stats.min, dashArray: "3,3", strokeWidth: 1, label: "Min" },
-                        { value: stats.max, dashArray: "3,3", strokeWidth: 1, label: "Max" },
-                        { value: stats.avg, dashArray: "5,5", strokeWidth: 2, label: "Avg" },
+                        { value: stats.min, dashArray: "3,3", strokeWidth: 2, label: "Min" },
+                        { value: stats.max, dashArray: "3,3", strokeWidth: 2, label: "Max" },
+                        { value: stats.avg, dashArray: "5,5", strokeWidth: 3, label: "Avg" },
                     ]
 
                     statConfigs.forEach((config) => {
@@ -284,17 +266,6 @@ const DualLineChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
                             config.strokeWidth,
                             `stat-line-${config.label.toLowerCase()}-${index + 1}`,
                         )
-
-                        createStatLabel(
-                            chartContent,
-                            yScale,
-                            index === 0 ? innerWidth - 5 : 5,
-                            config.value,
-                            dataset.color,
-                            index === 0 ? "end" : "start",
-                            config.label,
-                            config.label === "Avg",
-                        )
                     })
                 }
 
@@ -304,7 +275,9 @@ const DualLineChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
                     .attr("class", dataset.key + dataset.name)
                     .attr("fill", "none")
                     .attr("stroke", dataset.color)
+                    .attr("opacity", 0.75)
                     .attr("stroke-width", 2)
+                    .style("mix-blend-mode", "difference")
                     .attr("d", lineGenerator)
             })
 
@@ -448,7 +421,7 @@ const DualLineChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
     return (
         <div className="w-full h-full flex flex-col">
             <div className="mb-4 flex-shrink-0 flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Frame Intensities by Frame</h2>
+                <h2 className="text-lg font-semibold">Motion by Frame</h2>
 
                 {/* Legend on the right */}
                 <TooltipProvider>
@@ -525,4 +498,4 @@ const DualLineChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], d
     )
 }
 
-export default DualLineChart
+export default LinesChart

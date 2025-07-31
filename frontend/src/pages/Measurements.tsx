@@ -4,7 +4,7 @@ import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useSlopeFrameBuffer } from "@/hooks/use-slope-buffer"
 import Heatmap from '@/components/dual-charts/heatmap-chart'
 import TileHeatmap from '@/components/dual-charts/tile-heatmap-chart'
-import DualLineChart from '@/components/dual-charts/line-chart'
+import LinesChart from '@/components/dual-charts/line-chart'
 import DualStatTable from '@/components/dual-charts/stat-table'
 import DualHistogram from '@/components/dual-charts/hist-chart'
 import { Card } from '@/components/ui/card'
@@ -98,13 +98,11 @@ export default function Measurements() {
         frameEnd,
         indexStart,
         indexEnd,
-        wfsIndex: wfs,
-        scaleType: scaleType,
-        intervalType: intervalType
+        wfsIndex: wfs
       })
 
       return json.tiles
-    } 
+    }
     catch (err) {
       console.warn("Fetch tiles error:", err)
     }
@@ -137,9 +135,8 @@ export default function Measurements() {
             Can't render measurements. subaperture_mask not found.
           </div>
         }
-
-        <></>
       </GridItem>
+
       <GridItem area="b">
         {meta &&
           <TileHeatmap
@@ -153,11 +150,11 @@ export default function Measurements() {
             selectedPoint={selectedPoint}
           />
         }
-
       </GridItem>
+
       {frameBuffer.pointData ?
         <GridItem area="c">
-          <DualLineChart
+          <LinesChart
             data1X={frameBuffer.pointData.point_means[0]}
             data1Y={frameBuffer.pointData.point_means[1]}
             data2X={[]}
@@ -179,6 +176,7 @@ export default function Measurements() {
           </Card>
         </GridItem>
       }
+
       {frameBuffer.pointData ?
         <GridItem area="d">
           <DualHistogram
@@ -189,7 +187,6 @@ export default function Measurements() {
             config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
             config2={undefined}
           />
-          <></>
         </GridItem>
         :
         <GridItem area="d" className='flex items-center justify-center'>

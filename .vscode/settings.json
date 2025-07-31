@@ -4,6 +4,7 @@
         "Epanechnikov",
         "GLAO",
         "MCAO",
-        "SCAO"
+        "SCAO",
+        "WLINE"
     ]
 }

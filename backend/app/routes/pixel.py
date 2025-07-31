@@ -2,7 +2,6 @@ from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 import numpy as np
 from ..session.actions import get_session_from_cookie
-from ..utils import process_frame
 import aotpy
 import gc
 
@@ -18,8 +17,6 @@ async def get_pixel_frame(request: Request):
 
     wfs_index = int(form.get("wfs_index", 0))
     frame_index = int(form.get("frame_index", 0))
-    interval_type = form.get("interval_type", "minmax")
-    scale_type = form.get("scale_type", "linear")
 
     try:
         system = aotpy.AOSystem.read_from_file(session.file_path)
@@ -33,16 +30,14 @@ async def get_pixel_frame(request: Request):
             raise HTTPException(status_code=400, detail=f"frame_index {frame_index} out of range")
 
         frame = data[frame_index]
-        
-        transformed = process_frame(scale_type, interval_type, frame)
-        
+    
         del system
         gc.collect()
     except Exception as e:
         print(f"AOSystem error: {e}")
         raise HTTPException(status_code=500, detail="Failed to load frame")
     
-    return JSONResponse({"frame": transformed.tolist()})
+    return JSONResponse({"frame": frame.tolist()})
 
 @router.post("/pixel/tile")
 async def get_flat_tile_post(request: Request):
@@ -56,8 +51,6 @@ async def get_flat_tile_post(request: Request):
     index_start = int(form.get("index_start"))
     index_end = int(form.get("index_end"))
     wfs_index = int(form.get("wfs_index", 0))
-    interval_type = form.get("interval_type", "minmax")
-    scale_type = form.get("scale_type", "linear")
 
     if frame_end <= frame_start:
         raise HTTPException(status_code=400, detail="Invalid frame range")
@@ -77,23 +70,20 @@ async def get_flat_tile_post(request: Request):
 
         frame_end = min(frame_end, num_frames)
         index_end = min(index_end, num_cols * num_rows)
-
-        tile_data = []
-        for frame in range(frame_start, frame_end):
-            transformed = process_frame(scale_type, interval_type, data3d[frame])
-            flat = [
-                transformed[col][row]
-                for col in range(num_cols)
-                for row in range(num_rows)
-            ]
-            sliced = flat[index_start:index_end]
-            tile_data.append(np.array(sliced))
-
+        
+        flat_indices = np.arange(index_start, index_end)
+        cols = flat_indices // num_rows
+        rows = flat_indices % num_rows
+        valid_mask = (cols < num_cols) & (rows < num_rows)
+        cols = cols[valid_mask]
+        rows = rows[valid_mask]
+        frame_range = np.arange(frame_start, frame_end)
+        sliced = data3d[frame_range[:, None], cols[None, :], rows[None, :]]
         del system
         gc.collect()
 
         return JSONResponse({
-            "tile": np.array(tile_data).tolist(),
+            "tile": sliced.tolist(),
         })
 
     except Exception as e:

@@ -90,12 +90,9 @@ export function createColorScale(data: number[][], colormap: ColorMap, scaleType
         .clamp(true)
         .unknown("rgba(255, 255, 255, 1)")
 
-    const colorScale = (v: number, print = false) => {
+    const colorScale = (v: number) => {
         if (!isFinite(v)) return "rgba(255, 255, 255, 1)"
         const transformed = v < 0 ? -signedTransform(Math.abs(v),) : signedTransform(v)
-        if (print) {
-            console.log("Value:", v, ", Transformed:", transformed, ", Scaled:", scale(transformed))
-        }
         return scale(transformed)
     }
     
@@ -106,7 +103,7 @@ export function createColorScale(data: number[][], colormap: ColorMap, scaleType
         const value = d3.interpolateNumber(vMin, vMax)(t)
         return {
             offset: `${t * 100}%`,
-            color: colorScale(value, true),
+            color: colorScale(value),
         }
     })
     return { gradientStops, colorScale }

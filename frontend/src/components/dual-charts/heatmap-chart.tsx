@@ -44,7 +44,6 @@ export default function Heatmap({
   const [showTooltips, setShowTooltips] = useState(true)
   const [showLegend, setShowLegend] = useState(true)
   const [showControlBar, setShowControlBar] = useState(true)
-  // const [{ vMin, vMax }, setValues] = useState({ vMin: minValue, vMax: maxValue })
   const svgRef = useRef<SVGSVGElement>(null)
   const [gradientStops, setGradientStops] = useState<{ offset: string; color: string; }[]>([])
 
@@ -87,7 +86,8 @@ export default function Heatmap({
           numRows,
           numCols,
           selectedCell,
-          colorScale
+          colorScale,
+          colorMap
         )
       })
     }
@@ -242,7 +242,8 @@ export default function Heatmap({
           </div>
           {hoveredCell && showTooltips && (
             <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none">
-              Cell ({hoveredCell.col}, {hoveredCell.row}): Slope X: {hoveredCell.values[0]?.toFixed(2)}, Slope Y: {hoveredCell.values[1]?.toFixed(2)}
+              Cell ({hoveredCell.col}, {hoveredCell.row}): Intensity: {hoveredCell.values[0]?.toFixed(2)}
+              {/* , Slope Y: {hoveredCell.values[1]?.toFixed(2)} */}
             </div>
           )}
 
