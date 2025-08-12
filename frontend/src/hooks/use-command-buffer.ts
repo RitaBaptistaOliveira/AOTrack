@@ -44,7 +44,6 @@ export function useCommandBuffer(loopIndex: number) {
     const [buffer, setBuffer] = useState<Map<number, number[][]>>(new Map())
     const [pointData, setPointData] = useState<PointStats | undefined>()
 
-    // Call fetchMeta once
     useEffect(() => {
         const fetchMeta = async () => {
             const form = new FormData()
@@ -97,9 +96,7 @@ export function useCommandBuffer(loopIndex: number) {
             try {
                 const res = await fetchPointStats({
                     loopIndex,
-                    index,
-                    intervalType,
-                    scaleType
+                    index
                 })
                 setPointData(res)
             } catch (err) {

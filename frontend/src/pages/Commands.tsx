@@ -2,21 +2,22 @@ import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dash
 import { useCallback, useEffect, useState } from 'react'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useCommandBuffer } from '@/hooks/use-command-buffer'
-import Visualization from '@/components/charts/heatmap-chart'
-import FlapHeatmap from '@/components/charts/heatmap-flat-chart'
-import D3LineChart from '@/components/charts/line-chart'
-import Histogram from '@/components/charts/hist-chart'
 import StatTable from '@/components/charts/stat-table'
 import { Card } from '@/components/ui/card'
 import { LineChart, BarChart3 } from "lucide-react"
 import { useAoSession } from '@/contexts/ao-session-context'
+import { fetchTile } from '@/api/command/fetchTile'
+import Heatmap from '@/components/charts/heatmap-chart'
+import TileHeatmap from '@/components/charts/tile-heatmap-chart'
+import LinesChart from '@/components/charts/line-chart'
+import Histogram from '@/components/charts/hist-chart'
 
 export default function Commands() {
-  const {wfc} = useAoSession()
+  const { wfc } = useAoSession()
   const frameBuffer = useCommandBuffer(wfc)
   const [currentFrame, setCurrentFrame] = useState(0)
-  const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number, value: number } | null>(null)
-  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number, value: number } | null>(null)
+  const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number } | null>(null)
+  const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number } | null>(null)
   const currentFrameData = frameBuffer.getFrame(currentFrame)
   const { scaleType, intervalType } = useChartInteraction()
 
@@ -25,8 +26,8 @@ export default function Commands() {
     numIndices: number
     overallMin: number
     overallMax: number
-    numRows?: number
     numCols?: number
+    numRows?: number
     colRowToIndex?: number[][]
     indexToColRow?: [number, number][]
   } | null>(null)
@@ -37,66 +38,77 @@ export default function Commands() {
     }
   }, [frameBuffer.meta])
 
-  const handleSelect = useCallback(async (selected: { frame: number, x: number; y: number | undefined; value: number } | null) => {
-    if (selected && meta) {
-      const { frame, x, y, value } = selected
-
-      if (typeof y === 'number' &&
-        meta.colRowToIndex &&
-        meta.colRowToIndex[x]?.[y] !== undefined) {
-        const i = meta.colRowToIndex[x][y]
-        if (i === -1) {
-          console.warn("Selected cell is invalid (NaN region).")
+  const handleCellSelect = useCallback(async (selected: { frame: number, col: number; row: number } | null) => {
+    setSelectedCell(selected)
+    if (selected) {
+      const col = selected.col
+      const row = selected.row
+      if (meta && meta.colRowToIndex && meta.colRowToIndex[col]?.[row] !== undefined) {
+        const index = meta.colRowToIndex[col][row]
+        if (index === -1) {
+          console.warn("Invalid mask access at", col, row)
           return
         }
-        setCurrentFrame(frame)
-        setSelectedCell({
-          frame: frame,
-          col: x,
-          row: y,
-          value: value,
-        })
         setSelectedPoint({
-          frame: frame,
-          index: i,
-          value: value,
+          frame: selected.frame,
+          index: index
         })
-        await frameBuffer.fetchPointData(i)
-      }
-      else {
-        setCurrentFrame(frame)
-
-        if (meta.indexToColRow && meta.indexToColRow[x] !== undefined) {
-          const index = x
-          const [col, row] = meta.indexToColRow[index]
-          setSelectedCell({
-            frame: frame,
-            col: col,
-            row: row,
-            value: value,
-          })
-        }
-
-        setSelectedPoint({
-          frame: frame,
-          index: x,
-          value: value
-        })
-        await frameBuffer.fetchPointData(x)
+        await frameBuffer.fetchPointData(index)
       }
     } else {
-      setSelectedCell(null)
       setSelectedPoint(null)
       frameBuffer.setPointData(undefined)
     }
-  }, [frameBuffer])
+  }, [meta])
+
+  const handlePointSelect = useCallback(async (selected: { frame: number, index: number } | null) => {
+    setSelectedPoint(selected)
+    if (selected && meta) {
+      const index = selected.index
+      const frame = selected.frame
+      if (meta.indexToColRow && meta.indexToColRow[index]) {
+        const [col, row] = meta.indexToColRow[index]
+        setCurrentFrame(frame)
+        setSelectedCell({
+          frame: frame,
+          col: col,
+          row: row
+        })
+        await frameBuffer.fetchPointData(index)
+      }
+    }
+    else {
+      setSelectedCell(null)
+      frameBuffer.setPointData(undefined)
+    }
+  }, [meta])
 
   const handleFrameChange = useCallback((frame: number) => {
     setCurrentFrame(frame)
+    setSelectedCell(prev => prev ? { ...prev, frame } : null)
+    setSelectedPoint(prev => prev ? { ...prev, frame } : null)
+  }, [])
+
+  const handleFetchTile = useCallback(async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
+    try {
+      const json = await fetchTile({
+        frameStart,
+        frameEnd,
+        indexStart,
+        indexEnd,
+        loopIndex: wfc
+      })
+
+      return [json.tile]
+    }
+    catch (err) {
+      console.warn("Fetch tiles error:", err)
+    }
+    return []
   }, [])
 
   useEffect(() => {
-    frameBuffer.preloadAround(currentFrame, 5)
+    frameBuffer.preloadAround(currentFrame, 2)
   }, [currentFrame, scaleType, intervalType])
 
   return (
@@ -104,16 +116,16 @@ export default function Commands() {
 
       <GridItem area="a">
         {(meta?.numCols && meta.numRows) ?
-          <Visualization
-            data={currentFrameData ? currentFrameData : []}
+          <Heatmap
+            data={currentFrameData ? [currentFrameData] : []}
             numRows={meta.numRows}
             numCols={meta.numCols}
             numFrames={meta.numFrames}
             minValue={meta.overallMin}
             maxValue={meta.overallMax}
-            onCellSelect={handleSelect}
+            onCellSelect={handleCellSelect}
             onFrameChange={handleFrameChange}
-            selectedPoint={selectedPoint}
+            selectedCell={selectedCell}
           />
           :
           <div className='text-center'>
@@ -123,24 +135,27 @@ export default function Commands() {
       </GridItem>
       <GridItem area="b">
         {meta &&
-          <FlapHeatmap
+          <TileHeatmap
             numFrames={meta.numFrames}
-            numRows={meta.numRows ?? 0}
             numIndexes={meta.numIndices}
+            dim={1}
             minValue={meta.overallMin}
             maxValue={meta.overallMax}
-            onPointSelect={handleSelect}
-            selectedCell={selectedCell}
-          />}
-
+            onPointSelect={handlePointSelect}
+            onFetchTile={handleFetchTile}
+            selectedPoint={selectedPoint}
+          />
+        }
       </GridItem>
 
       {frameBuffer.pointData ?
         <GridItem area="c">
           {frameBuffer.pointData &&
-            <D3LineChart
-              data1={frameBuffer.pointData?.point_means || []}
-              data2={[]}
+            <LinesChart
+              data1X={frameBuffer.pointData.point_means}
+              data1Y={[]}
+              data2X={[]}
+              data2Y={[]}
               config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
               config2={undefined}
             />
@@ -164,8 +179,10 @@ export default function Commands() {
           <GridItem area="d">
             {frameBuffer.pointData && meta && (
               <Histogram
-                data1={frameBuffer.pointData?.point_means || []}
-                data2={[]}
+                data1X={frameBuffer.pointData.point_means}
+                data1Y={[]}
+                data2X={[]}
+                data2Y={[]}
                 config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
                 config2={undefined}
               />
@@ -184,7 +201,6 @@ export default function Commands() {
             </Card>
           </GridItem>
       }
-
 
       <GridItem area="e">
         {frameBuffer.stats &&

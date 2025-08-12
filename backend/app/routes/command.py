@@ -18,8 +18,6 @@ async def get_command_frame(request: Request):
 
     loop_index = int(form.get("loop_index", 0))
     frame_index = int(form.get("frame_index", 0))
-    interval_type = form.get("interval_type", "minmax")
-    scale_type = form.get("scale_type", "linear")
 
     try:
         system = aotpy.AOSystem.read_from_file(session.file_path)
@@ -42,10 +40,9 @@ async def get_command_frame(request: Request):
         command_vector = commands[frame_index]
         image_flat = command_vector @ influence_matrix
         image_2d = image_flat.reshape(x, y)
-        transformed = process_frame(scale_type, interval_type, image_2d)
         safe_array = [
             [None if np.isnan(x) else x for x in row]
-            for row in transformed.tolist()
+            for row in image_2d.tolist()
         ]
         del system
         gc.collect()
@@ -67,8 +64,6 @@ async def get_flat_tile_post(request: Request):
     index_start = int(form.get("index_start"))
     index_end = int(form.get("index_end"))
     loop_index = int(form.get("loop_index", 0))
-    interval_type = form.get("interval_type", "minmax")
-    scale_type = form.get("scale_type", "linear")
 
     if frame_end <= frame_start:
         raise HTTPException(status_code=400, detail="Invalid frame range")
@@ -91,9 +86,7 @@ async def get_flat_tile_post(request: Request):
         frame_end = min(frame_end, n_frames)
         index_end = min(index_end, n_indexes)
 
-        
-        transformed = process_frame(scale_type, interval_type, commands)
-        sliced = transformed[frame_start:frame_end, index_start:index_end]
+        sliced = commands[frame_start:frame_end, index_start:index_end]
 
         del system
         gc.collect()

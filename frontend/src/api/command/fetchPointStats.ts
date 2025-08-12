@@ -2,14 +2,10 @@ import type { DataPoint } from "@/types/visualization"
 
 export async function fetchPointStats({
   loopIndex,
-  index,
-  intervalType,
-  scaleType,
+  index
 }: {
   loopIndex: number
   index: number
-  intervalType: string
-  scaleType: string
 }): Promise<{
   point_means: DataPoint[]
   stats: {
@@ -24,8 +20,6 @@ export async function fetchPointStats({
   const formData = new FormData()
   formData.append("loop_index", loopIndex.toString())
   formData.append("index", index.toString())
-  formData.append("interval_type", intervalType)
-  formData.append("scale_type", scaleType)
 
   const res = await fetch("http://localhost:8000/command/get-point-stats", {
     method: "POST",

@@ -1,0 +1,28 @@
+{
+  "tsconfig": "tsconfig.app.json",
+  "entryPoints": ["src"],
+  "entryPointStrategy": "expand",
+  "out": "docs/api",
+
+  // what to show
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeProtected": false,
+  "excludeNotDocumented": true,
+  "excludeExternals": true,
+
+  // tidy output
+  "categorizeByGroup": true,
+  "readme": "none",
+
+  // ignore noise
+  "exclude": [
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/*.stories.tsx",
+    "**/__mocks__/**",
+    "**/vite-env.d.ts"
+  ]
+}

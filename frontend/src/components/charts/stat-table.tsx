@@ -1,47 +1,91 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+
+type StatValue = number | number[]
+
+interface StatData {
+  min: StatValue
+  max: StatValue
+  mean: StatValue
+  median: StatValue
+  std: StatValue
+  variance: StatValue
+}
 
 interface StatTableProps {
-  data: { max: number, mean: number, median: number, min: number, std: number, variance: number }
-  selectedPoint?: { max: number, mean: number, median: number, min: number, std: number, variance: number }
+  data: StatData
+  selectedPoint?: StatData
 }
 
 export default function StatTable({ data, selectedPoint }: StatTableProps) {
 
   const stats = [
-    { label: "Min", globalValue: data.min, selectedValue: selectedPoint?.min },
-    { label: "Max", globalValue: data.max, selectedValue: selectedPoint?.max },
-    { label: "Mean", globalValue: data.mean, selectedValue: selectedPoint?.mean },
-    { label: "Median", globalValue: data.median, selectedValue: selectedPoint?.median },
-    { label: "Std Dev", globalValue: data.std, selectedValue: selectedPoint?.std },
-    { label: "Variance", globalValue: data.variance, selectedValue: selectedPoint?.variance },
-  ]
+    { label: "Min", key: "min" },
+    { label: "Max", key: "max" },
+    { label: "Mean", key: "mean" },
+    { label: "Median", key: "median" },
+    { label: "Std Dev", key: "std" },
+    { label: "Variance", key: "variance" },
+  ] as const
+
+  const axisLabels = ["X", "Y", "Z", "W"]
+
+  const getValuesArray = (val: StatValue): number[] =>
+    Array.isArray(val) ? val : [val]
+
+  const axisCount = getValuesArray(data.min).length
+
+  const getAxisLabel = (index: number) =>
+    axisLabels[index] ?? `Axis ${index + 1}`
+
+  const formatValue = (val?: number) =>
+    val !== undefined ? val.toFixed(axisCount > 1 ? 4 : 3) : "-"
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead className="w-32">Metric</TableHead>
-          <TableHead>Global</TableHead>
-          {selectedPoint && <TableHead>Selected Point</TableHead>}
+          {Array.from({ length: axisCount }, (_, i) => (
+            <TableHead key={`global-${i}`}>
+              {axisCount > 1
+                ? `${getAxisLabel(i)} (Global)`
+                : "Global"}
+            </TableHead>
+          ))}
+          {selectedPoint &&
+            Array.from({ length: axisCount }, (_, i) => (
+              <TableHead key={`selected-${i}`}>
+                {axisCount > 1
+                  ? `${getAxisLabel(i)} (Selected)`
+                  : "Selected"}
+              </TableHead>
+            ))}
         </TableRow>
       </TableHeader>
       <TableBody>
-        {stats.map((stat) => (
-          <TableRow key={stat.label}>
-            <TableCell className="font-medium">{stat.label}</TableCell>
-            <TableCell>{stat.globalValue.toFixed(3)}</TableCell>
-            {selectedPoint && (
-              <TableCell>{stat.selectedValue?.toFixed(3)}</TableCell>
-            )}
-          </TableRow>
-        ))}
+        {stats.map(({ label, key }) => {
+          const globalVals = getValuesArray(data[key])
+          const selectedVals = selectedPoint
+            ? getValuesArray(selectedPoint[key])
+            : []
+
+          return (
+            <TableRow key={label}>
+              <TableCell className="font-medium">{label}</TableCell>
+
+
+              {globalVals.map((v, i) => (
+                <TableCell key={`g-${key}-${i}`}>{formatValue(v)}</TableCell>
+              ))}
+
+              {/* Selected values */}
+              {selectedPoint &&
+                selectedVals.map((v, i) => (
+                  <TableCell key={`s-${key}-${i}`}>{formatValue(v)}</TableCell>
+                ))}
+            </TableRow>
+          )
+        })}
       </TableBody>
     </Table>
   )

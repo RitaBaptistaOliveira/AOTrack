@@ -3,13 +3,16 @@
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import * as d3 from "d3"
-import type { D3LineChartProps } from "@/types/line"
+import type { LineChartProps2D } from "@/types/line"
 import { TrendingUp, BarChart3 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip"
 import { Input } from "../ui/input"
+import { themeColorMap } from "@/utils/color-themes"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
 
-const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1, config2 }) => {
+const Histogram: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], data2X = [], data2Y = [], config1, config2 }) => {
+  const { colorMap } = useChartInteraction()
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
@@ -21,11 +24,14 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity)
 
   const margin = { top: 5, right: 10, bottom: 40, left: 40 }
-  const colors = ["#3b82f6", "#ef4444"]
+
+  const colors = themeColorMap[colorMap]
 
   const datasets = [
-    { data: data1, config: config1, key: "line1", color: colors[0], name: "Line 1" },
-    { data: data2, config: config2, key: "line2", color: colors[1], name: "Line 2" },
+    { data: data1X, config: config1, key: "line1", color: colors.point1[0], name: "X" },
+    { data: data1Y, config: config1, key: "line1", color: colors.point1[1], name: "Y" },
+    { data: data2X, config: config2, key: "line2", color: colors.point2[0], name: "X" },
+    { data: data2Y, config: config2, key: "line2", color: colors.point2[1], name: "Y" },
   ] as const
 
   // Determine what should be rendered
@@ -81,7 +87,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
   }
 
   useEffect(() => {
-    const lengths = [data1.length, data2.length].filter(len => len > 0)
+    const lengths = [data1X.length, data2X.length].filter(len => len > 0)
 
     if (lengths.length === 0) {
       setBinsRange([5, 20])
@@ -94,7 +100,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
       if (prev[0] !== min || prev[1] !== max) return [min, max]
       return prev
     })
-  }, [data1.length, data2.length])
+  }, [data1X.length, data2X.length])
 
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || allData.length === 0) return
@@ -196,7 +202,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
         .attr("width", innerWidth)
         .attr("height", innerHeight)
 
-      // Create chart content group (MOVE THIS HERE)
+      // Create chart content group
       const chartContent = g.append("g").attr("clip-path", "url(#histogram-clip)")
 
       // Add axes
@@ -209,7 +215,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
 
       g.append("g").attr("class", "y-axis").call(d3.axisLeft(yScale))
 
-      // Draw statistics lines for visible datasets (NOW THIS WILL WORK)
+      // Draw statistics lines for visible datasets
       datasetStats.forEach(({ dataset, stats }) => {
         if (
           visibleLines[dataset.key as keyof typeof visibleLines] &&
@@ -225,7 +231,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
             // Draw vertical line
             chartContent
               .append("line")
-              .attr("class", `stat-line-${config.label.toLowerCase()}-${dataset.key}`)
+              .attr("class", `stat-line-${config.label.toLowerCase()}-${dataset.key}-${dataset.name}`)
               .attr("x1", initialXScale(config.value))
               .attr("x2", initialXScale(config.value))
               .attr("y1", 0)
@@ -238,15 +244,17 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
             // Add label with better visibility
             chartContent
               .append("text")
-              .attr("class", `stat-text-${config.label.toLowerCase()}-${dataset.key}`)
+              .attr("class", `stat-text-${config.label.toLowerCase()}-${dataset.key}-${dataset.name}`)
               .attr("x", initialXScale(config.value))
               .attr("y", 15 + index * 15)
               .attr("text-anchor", "middle")
-              .style("font-size", "12px")
-              .style("fill", dataset.color)
+              .style("font-size", "10px")
+              .style("fill", "white")
               .style("font-weight", "bold")
+              .style("stroke", dataset.color)
               .style("stroke-width", "2px")
-              .text(`${config.label}: ${config.value.toFixed(3)}`)
+              .style("paint-order", "stroke fill")
+              .text(`${config.label}: ${config.value.toFixed(1)}`)
           })
         }
       })
@@ -300,10 +308,20 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
           // Update bars directly
           datasetBins.forEach(({ dataset }) => {
             svg
-              .selectAll(`.bar-${dataset.key}`)
+              .selectAll(`.bar-${dataset.key}-${dataset.name}`)
               .attr("x", (d: any) => newXScale(d.x0))
               .attr("width", (d: any) => Math.max(0, newXScale(d.x1) - newXScale(d.x0)))
           })
+
+          const highlight = svg.selectAll(".highlight-bar")
+          if (!highlight.empty() && highlight.style("display") !== "none") {
+            const x = +highlight.attr("data-x0");
+            const x1 = +highlight.attr("data-x1");
+
+            highlight
+              .attr("x", newXScale(x))
+              .attr("width", Math.max(0, newXScale(x1) - newXScale(x)))
+          }
 
           // Update KDE curves
           const lineGenerator = d3
@@ -313,7 +331,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
             .curve(d3.curveCardinal)
 
           kdeData.forEach(({ dataset, kde }) => {
-            svg.select(`.kde-${dataset.key}`).attr("d", lineGenerator(kde))
+            svg.select(`.kde-${dataset.key}-${dataset.name}`).attr("d", lineGenerator(kde))
           })
 
           // Update statistics lines
@@ -330,7 +348,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
 
               statConfigs.forEach((config) => {
                 svg
-                  .selectAll(`.stat-line-${config.label.toLowerCase()}-${dataset.key}`)
+                  .selectAll(`.stat-line-${config.label.toLowerCase()}-${dataset.key}-${dataset.name}`)
                   .attr("x1", newXScale(config.value))
                   .attr("x2", newXScale(config.value))
               })
@@ -351,7 +369,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
 
               statConfigs.forEach((config) => {
                 svg
-                  .selectAll(`.stat-text-${config.label.toLowerCase()}-${dataset.key}`)
+                  .selectAll(`.stat-text-${config.label.toLowerCase()}-${dataset.key}-${dataset.name}`)
                   .attr("x", newXScale(config.value))
               })
             }
@@ -377,10 +395,10 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
         .attr("x", width / 2)
         .attr("y", height - 5)
         .attr("text-anchor", "middle")
-        .style("font-size", "12px")
+        .style("font-size", "16px")
         .style("font-weight", "500")
-        .style("fill", "#666")
-        .text("Intensity")
+        .style("fill", "#333")
+        .text("Measurement Value")
 
       svg
         .append("text")
@@ -388,28 +406,40 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
         .attr("y", 12)
         .attr("text-anchor", "middle")
         .attr("transform", "rotate(-90)")
-        .style("font-size", "12px")
+        .style("font-size", "16px")
         .style("font-weight", "500")
-        .style("fill", "#666")
+        .style("fill", "#333")
         .text("Count")
+
+      // Draw hidden bar highlighting rectangle
+      chartContent.append("rect")
+        .attr("class", "highlight-bar")
+        .attr("stroke", "black")
+        .attr("stroke-width", 2)
+        .attr("opacity", 1)
+        .attr("pointer-events", "none")
+        .style("mix-blend-mode", "normal")
+        .attr("data-x0", null)
+        .attr("data-x1", null)
+        .style("display", "none")
 
       // Draw bars for each dataset (overlapping)
       datasetBins.forEach(({ dataset, bins }) => {
         chartContent
-          .selectAll(`.bar-${dataset.key}`)
+          .selectAll(`.bar-${dataset.key}-${dataset.name}`)
           .data(bins)
           .enter()
           .append("rect")
-          .attr("class", `bar-${dataset.key}`)
+          .attr("class", `bar-${dataset.key}-${dataset.name}`)
           .attr("x", (d) => initialXScale(d.x0!))
           .attr("y", (d) => yScale(d.length))
           .attr("width", (d) => Math.max(0, initialXScale(d.x1!) - initialXScale(d.x0!)))
           .attr("height", (d) => innerHeight - yScale(d.length))
           .attr("fill", dataset.color)
-          .attr("opacity", 0.5)
-          .attr("stroke", dataset.color)
-          .attr("stroke-width", 0.5)
-          .style("mix-blend-mode", "overlay")
+          .attr("opacity", 0.75)
+          .attr("stroke", "black")
+          .attr("stroke-width", 1)
+          .style("mix-blend-mode", "difference")
           .style("display", visibleLines[dataset.key as keyof typeof visibleLines] ? "block" : "none")
       })
 
@@ -424,7 +454,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
         chartContent
           .append("path")
           .datum(kde)
-          .attr("class", `kde-${dataset.key}`)
+          .attr("class", `kde-${dataset.key}-${dataset.name}`)
           .attr("fill", "none")
           .attr("stroke", dataset.color)
           .attr("stroke-width", 2)
@@ -456,20 +486,49 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
 
       // Helper function to highlight bars
       const highlightBars = (binRange: { x0: number; x1: number; datasets: Array<{ dataset: any; bin: any }> }) => {
+        let overlapped = { name: null, key: null, count: Infinity }
+        binRange.datasets.forEach(({ dataset, bin }) => {
+          if (overlapped.count > bin.length) {
+            overlapped = { name: dataset.name, key: dataset.key, count: bin.length }
+          }
+        })
+
         binRange.datasets.forEach(({ dataset }) => {
-          svg
-            .selectAll(`.bar-${dataset.key}`)
+          svg.selectAll(`.bar-${dataset.key}-${dataset.name}`)
             .filter((d: any) => d.x0 === binRange.x0 && d.x1 === binRange.x1)
-            .attr("opacity", 0.8)
+            .attr("opacity", 0.9)
             .attr("stroke-width", 2)
-        });
+        })
+        if (overlapped.name && overlapped.key) {
+          const original = svg.selectAll(`.bar-${overlapped.key}-${overlapped.name}`)
+            .filter((d: any) => d.x0 === binRange.x0 && d.x1 === binRange.x1)
+            .node()
+
+          if (original) {
+            const originalSelection = d3.select(original)
+            const highlight = svg.select<SVGRectElement>(".highlight-bar")
+            highlight
+              .attr("x", originalSelection.attr("x"))
+              .attr("y", originalSelection.attr("y"))
+              .attr("width", originalSelection.attr("width"))
+              .attr("height", originalSelection.attr("height"))
+              .attr("fill", originalSelection.attr("fill"))
+              .attr("data-x0", binRange.x0)
+              .attr("data-x1", binRange.x1)
+              .style("display", "inline")
+              .raise()
+          }
+        }
+
+
       }
 
       // Helper function to reset bar highlighting
       const resetBarHighlight = () => {
         datasetBins.forEach(({ dataset }) => {
-          svg.selectAll(`.bar-${dataset.key}`).attr("opacity", 0.5).attr("stroke-width", 0.5)
+          svg.selectAll(`.bar-${dataset.key}-${dataset.name}`).attr("opacity", 0.75).attr("stroke-width", 0.5)
         })
+        svg.selectAll(".highlight-bar").style("display", "none")
       }
 
       // Create hover areas for each unique bin range
@@ -496,7 +555,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
           highlightBars(d)
 
           // Build tooltip content for datasets with data in this bin range
-          let tooltipContent = `<div style="margin-bottom: 8px;"><strong>Range: ${d.x0.toFixed(3)} - ${d.x1.toFixed(3)}</strong></div>`
+          let tooltipContent = `<div style="margin-bottom: 8px;"><strong>Range: ${d.x0.toFixed(1)} - ${d.x1.toFixed(1)}</strong></div>`
 
           datasetsWithData.forEach(({ dataset, bin }) => {
             tooltipContent += `<div style="margin-bottom: 6px;"><strong style="color: ${dataset.color};">${dataset.name}</strong><br/>Count: ${bin.length}</div>`
@@ -596,20 +655,24 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
     <div className="w-full h-full flex flex-col">
       {/* Chart Title and Controls */}
       <div className="mb-4 flex-shrink-0 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Intensity Distribution</h2>
+        <h2 className="text-lg font-semibold">Measurement Distribution</h2>
 
         <div className="flex items-center gap-4">
 
           <TooltipProvider>
             <div className="flex gap-2 items-center">
-              {activeDatasets.map((dataset, index) => {
-                const lineNumber = (index + 1) as 1 | 2
-                const isVisible = visibleLines[dataset.key as keyof typeof visibleLines]
-                const showStatsActive = showStats[dataset.key as keyof typeof showStats]
-                const showKDEActive = showKDE[dataset.key as keyof typeof showKDE]
-
+              {Object.entries(activeDatasets.reduce((acc, d) => {
+                if (!acc[d.key]) acc[d.key] = [];
+                acc[d.key].push(d);
+                return acc;
+              }, {} as Record<string, typeof activeDatasets>)
+              ).map(([key, group], index) => {
+                const lineNumber = (index < 2 ? 1 : 2) as 1 | 2
+                const isVisible = visibleLines[key as keyof typeof visibleLines]
+                const showStatsActive = showStats[key as keyof typeof showStats]
+                const showKDEActive = showKDE[key as keyof typeof showKDE]
                 return (
-                  <div key={dataset.key} className="flex items-center">
+                  <div key={key} className="flex items-center">
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -619,19 +682,23 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
                             }`}
                           onClick={() => toggleLineVisibility(lineNumber)}
                         >
-                          <div
-                            className="w-2 h-2 rounded-full"
-                            style={{
-                              backgroundColor: isVisible ? dataset.color : "#d1d5db",
-                            }}
-                          />
+                          {group.map((d) => (
+                            <div key={key + d.name}>
+                              {d.name}
+                              <div
+                                className="w-2 h-2 rounded-full"
+                                style={{ backgroundColor: isVisible ? d.color : "#d1d5db" }}
+                              />
+                            </div>
+
+                          ))}
                           <span className="font-medium">
-                            {dataset.config?.col},{dataset.config?.row}
+                            ({group[0].config?.col},{group[0].config?.row})
                           </span>
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Toggle Cell({dataset.config?.col},{dataset.config?.row}) visibility</p>
+                        <p>Toggle Cell({group[0].config?.col},{group[0].config?.row}) visibility</p>
                       </TooltipContent>
                     </Tooltip>
 
@@ -643,7 +710,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
                           className={`h-7 px-1 py-0 rounded-none ${!isVisible ? "opacity-50 cursor-not-allowed" : showKDEActive ? "bg-gray-100" : ""
                             }`}
                           onClick={() => toggleKDE(lineNumber)}
-                          disabled={!visibleLines[dataset.key as keyof typeof visibleLines]}
+                          disabled={!visibleLines[key as keyof typeof visibleLines]}
                         >
                           <TrendingUp
                             size={12}
@@ -651,7 +718,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Toggle Cell({dataset.config?.col},{dataset.config?.row}) KDE curve</p>
+                        <p>Toggle KDE curve</p>
                       </TooltipContent>
                     </Tooltip>
 
@@ -663,7 +730,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
                           className={`h-7 px-1 py-0 rounded-l-none ${!isVisible ? "opacity-50 cursor-not-allowed" : showStatsActive ? "bg-gray-100" : ""
                             }`}
                           onClick={() => toggleStats(lineNumber)}
-                          disabled={!visibleLines[dataset.key as keyof typeof visibleLines]}
+                          disabled={!visibleLines[key as keyof typeof visibleLines]}
                         >
                           <BarChart3
                             size={12}
@@ -671,7 +738,7 @@ const Histogram: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Toggle Cell({dataset.config?.col},{dataset.config?.row}) KDE curve</p>
+                        <p>Toggle statistics</p>
                       </TooltipContent>
                     </Tooltip>
                   </div>

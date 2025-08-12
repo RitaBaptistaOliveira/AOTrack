@@ -2,11 +2,11 @@ import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dash
 import { useCallback, useEffect, useState } from 'react'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useFrameBuffer } from "@/hooks/use-frame-buffer"
-import Heatmap from '@/components/dual-charts/heatmap-chart'
-import TileHeatmap from '@/components/dual-charts/tile-heatmap-chart'
-import LinesChart from '@/components/dual-charts/line-chart'
+import Heatmap from '@/components/charts/heatmap-chart'
+import TileHeatmap from '@/components/charts/tile-heatmap-chart'
+import LinesChart from '@/components/charts/line-chart'
 import StatTable from '@/components/charts/stat-table'
-import DualHistogram from '@/components/dual-charts/hist-chart'
+import Histogram from '@/components/charts/hist-chart'
 import { Card } from '@/components/ui/card'
 import { LineChart, BarChart3 } from "lucide-react"
 import { useAoSession } from '@/contexts/ao-session-context'
@@ -161,7 +161,7 @@ export default function Pixels() {
 
       {frameBuffer.pointData ?
         <GridItem area="d">
-          <DualHistogram
+          <Histogram
             data1X={frameBuffer.pointData.point_means}
             data1Y={[]}
             data2X={[]}

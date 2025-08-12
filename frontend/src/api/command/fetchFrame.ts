@@ -1,8 +1,6 @@
 export async function fetchFrame({
     frameIndex,
-    loopIndex,
-    scaleType,
-    intervalType
+    loopIndex
 }: {
     frameIndex: number
     loopIndex: number
@@ -12,8 +10,6 @@ export async function fetchFrame({
     const form = new FormData()
     form.append("frame_index", frameIndex.toString())
     form.append("loop_index", loopIndex.toString())
-    form.append("interval_type", intervalType)
-    form.append("scale_type", scaleType)
 
     const res = await fetch("http://localhost:8000/command/get-frame", {
         method: "POST",

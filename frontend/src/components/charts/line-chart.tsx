@@ -3,10 +3,12 @@
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import * as d3 from "d3"
-import type { DataPoint, D3LineChartProps } from "@/types/line"
+import type { DataPoint, LineChartProps2D } from "@/types/line"
 import { BarChart3 } from "lucide-react"
 import { Button } from "../ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip"
+import { themeColorMap } from "@/utils/color-themes"
+import { useChartInteraction } from "@/contexts/chart-interactions-context"
 
 interface Statistics {
     min: number
@@ -14,21 +16,23 @@ interface Statistics {
     avg: number
 }
 
-const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], config1, config2 }) => {
+const LinesChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], data2X = [], data2Y = [], config1, config2 }) => {
+    const { colorMap } = useChartInteraction()
     const containerRef = useRef<HTMLDivElement>(null)
     const svgRef = useRef<SVGSVGElement>(null)
     const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity) // Add this line
-    // Internal state for line visibility (controlled by legend only)
     const [visibleLines, setVisibleLines] = useState({ line1: true, line2: true })
 
     const [showStats, setShowStats] = useState({ line1: false, line2: false })
 
     const margin = { top: 5, right: 10, bottom: 40, left: 55 }
-    const colors = ["#3b82f6", "#ef4444"]
+    const colors = themeColorMap[colorMap]
 
     const datasets = [
-        { data: data1, config: config1, key: "line1", color: colors[0], name: "Line 1" },
-        { data: data2, config: config2, key: "line2", color: colors[1], name: "Line 2" },
+        { data: data1X, config: config1, key: "line1", color: colors.point1[0], name: "X" },
+        { data: data1Y, config: config1, key: "line1", color: colors.point1[1], name: "Y" },
+        { data: data2X, config: config2, key: "line2", color: colors.point2[0], name: "X" },
+        { data: data2Y, config: config2, key: "line2", color: colors.point2[1], name: "Y" },
     ] as const
 
     // Calculate statistics
@@ -62,28 +66,7 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
             .attr("stroke", color)
             .attr("stroke-width", strokeWidth)
             .attr("stroke-dasharray", dashArray)
-            .attr("opacity", 0.7)
-    }
-
-    const createStatLabel = (
-        chartContent: d3.Selection<SVGGElement, unknown, null, undefined>,
-        yScale: d3.ScaleLinear<number, number>,
-        x: number,
-        value: number,
-        color: string,
-        anchor: "start" | "end",
-        label: string,
-        isBold = false,
-    ) => {
-        chartContent
-            .append("text")
-            .attr("x", x)
-            .attr("y", yScale(value) - 5)
-            .attr("text-anchor", anchor)
-            .style("font-size", "10px")
-            .style("fill", color)
-            .style("font-weight", isBold ? "bold" : "normal")
-            .text(`${label}: ${value.toFixed(3)}`)
+            .attr("opacity", 0.9)
     }
 
     const findClosestPoint = (
@@ -155,7 +138,7 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
             // Create zoom behavior (only horizontal)
             const zoom = d3
                 .zoom<SVGSVGElement, unknown>()
-                .scaleExtent([1, 10])
+                .scaleExtent([1, 30])
                 .translateExtent([
                     [0, 0],
                     [width, height],
@@ -197,7 +180,7 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
                         .curve(d3.curveMonotoneX)
 
                     visibleDatasets.forEach((dataset) => {
-                        svg.select(`.${dataset.key}`).attr("d", lineGenerator(dataset.data))
+                        svg.select(`.${dataset.key + dataset.name}`).attr("d", lineGenerator(dataset.data))
                     })
 
                     // Update hover dots with transformed scale (only if not panning)
@@ -236,7 +219,7 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
             // Add axis labels
             const axisLabels = [
                 { x: width / 2, y: height - 1, text: "Frames" },
-                { x: -height / 2, y: 10, text: "Intensity (aud)", transform: "rotate(-90)" },
+                { x: -height / 2, y: 10, text: "Motion ", transform: "rotate(-90)" },
             ]
 
             axisLabels.forEach((label) => {
@@ -245,9 +228,9 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
                     .attr("x", label.x)
                     .attr("y", label.y)
                     .attr("text-anchor", "middle")
-                    .style("font-size", "12px")
+                    .style("font-size", "16px")
                     .style("font-weight", "500")
-                    .style("fill", "#666")
+                    .style("fill", "#333")
                     .text(label.text)
                 if (label.transform) text.attr("transform", label.transform)
             })
@@ -267,9 +250,9 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
                 // Add statistics lines
                 if (isShowingStats) {
                     const statConfigs = [
-                        { value: stats.min, dashArray: "3,3", strokeWidth: 1, label: "Min" },
-                        { value: stats.max, dashArray: "3,3", strokeWidth: 1, label: "Max" },
-                        { value: stats.avg, dashArray: "5,5", strokeWidth: 2, label: "Avg" },
+                        { value: stats.min, dashArray: "3,3", strokeWidth: 2, label: "Min" },
+                        { value: stats.max, dashArray: "3,3", strokeWidth: 2, label: "Max" },
+                        { value: stats.avg, dashArray: "5,5", strokeWidth: 3, label: "Avg" },
                     ]
 
                     statConfigs.forEach((config) => {
@@ -283,27 +266,18 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
                             config.strokeWidth,
                             `stat-line-${config.label.toLowerCase()}-${index + 1}`,
                         )
-
-                        createStatLabel(
-                            chartContent,
-                            yScale,
-                            index === 0 ? innerWidth - 5 : 5,
-                            config.value,
-                            dataset.color,
-                            index === 0 ? "end" : "start",
-                            config.label,
-                            config.label === "Avg",
-                        )
                     })
                 }
 
                 chartContent
                     .append("path")
                     .datum(dataset.data)
-                    .attr("class", dataset.key)
+                    .attr("class", dataset.key + dataset.name)
                     .attr("fill", "none")
                     .attr("stroke", dataset.color)
+                    .attr("opacity", 0.75)
                     .attr("stroke-width", 2)
+                    .style("mix-blend-mode", "difference")
                     .attr("d", lineGenerator)
             })
 
@@ -355,7 +329,7 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
                         const point = findClosestPoint(dataset.data, x0, bisectX)
                         if (point) {
                             dotsData.push({ x: point.x, y: point.y, color: dataset.color, line: dataset.name })
-                            tooltipContent += `<div style="margin-bottom: 12px;"><strong style="color: ${dataset.color};">${dataset.name}</strong><br/>Frame: ${point.x} Intensity: ${point.y.toFixed(3)}</div>`
+                            tooltipContent += `<div style="margin-bottom: 12px;"><strong style="color: ${dataset.color};">${dataset.name}</strong><br/>Frame: ${point.x} Intensity: ${point.y.toFixed(2)}</div>`
                         }
                     })
 
@@ -447,18 +421,23 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
     return (
         <div className="w-full h-full flex flex-col">
             <div className="mb-4 flex-shrink-0 flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Frame Intensities by Frame</h2>
+                <h2 className="text-lg font-semibold">Motion by Frame</h2>
 
                 {/* Legend on the right */}
                 <TooltipProvider>
                     <div className="flex gap-2 items-center">
-                        {activeDatasets.map((dataset, index) => {
-                            const lineNumber = (index + 1) as 1 | 2
-                            const isVisible = visibleLines[dataset.key as keyof typeof visibleLines]
-                            const showStatsActive = showStats[dataset.key as keyof typeof showStats]
+                        {Object.entries(activeDatasets.reduce((acc, d) => {
+                            if (!acc[d.key]) acc[d.key] = [];
+                            acc[d.key].push(d);
+                            return acc;
+                        }, {} as Record<string, typeof activeDatasets>)
+                        ).map(([key, group], index) => {
+                            const lineNumber = (index < 2 ? 1 : 2) as 1 | 2
+                            const isVisible = visibleLines[key as keyof typeof visibleLines]
+                            const showStatsActive = showStats[key as keyof typeof showStats]
 
                             return (
-                                <div key={dataset.key} className="flex items-center">
+                                <div key={key} className="flex items-center">
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <Button
@@ -468,19 +447,23 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
                                                     }`}
                                                 onClick={() => toggleLineVisibility(lineNumber)}
                                             >
-                                                <div
-                                                    className="w-2 h-2 rounded-full"
-                                                    style={{
-                                                        backgroundColor: isVisible ? dataset.color : "#d1d5db",
-                                                    }}
-                                                />
+                                                {group.map((d) => (
+                                                    <div key={key + d.name}>
+                                                        {d.name}
+                                                        <div
+                                                            className="w-2 h-2 rounded-full"
+                                                            style={{ backgroundColor: isVisible ? d.color : "#d1d5db" }}
+                                                        />
+                                                    </div>
+
+                                                ))}
                                                 <span className="font-medium">
-                                                    {dataset.config?.col},{dataset.config?.row}
+                                                    ({group[0].config?.col},{group[0].config?.row})
                                                 </span>
                                             </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            <p>Toggle {dataset.name} visibility</p>
+                                            <p>Toggle Cell ({group[0].config?.col},{group[0].config?.row}) visibility</p>
                                         </TooltipContent>
                                     </Tooltip>
 
@@ -498,7 +481,7 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
                                             </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>
-                                            <p>Toggle {dataset.name} statistics</p>
+                                            <p>Toggle statistics for X and Y</p>
                                         </TooltipContent>
                                     </Tooltip>
                                 </div>
@@ -515,4 +498,4 @@ const D3LineChart: React.FC<D3LineChartProps> = ({ data1 = [], data2 = [], confi
     )
 }
 
-export default D3LineChart
+export default LinesChart
