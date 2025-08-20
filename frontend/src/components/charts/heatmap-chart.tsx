@@ -1,5 +1,3 @@
-"use client"
-
 import { useRef, useEffect, useState, useCallback, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { ChevronUp, ChevronDown } from "lucide-react"
@@ -10,6 +8,8 @@ import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import { useCanvasInteractions } from "@/hooks/use-canvas-interactions"
 import { drawHeatmap } from "@/utils"
 import { createColorScale } from "@/utils/color-scales"
+
+const INTERVAL = 1000 / 3 // 3 FPS
 
 interface HeatmapVisualizationProps {
   data: number[][][]
@@ -37,7 +37,6 @@ export default function Heatmap({
 
   const { colorMap, scaleType, intervalType } = useChartInteraction()
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([])
-  const [currentFrame, setCurrentFrame] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [hoveredCell, setHoveredCell] = useState<{ col: number; row: number; values: number[] } | null>(null)
 
@@ -54,7 +53,7 @@ export default function Heatmap({
     return colorScale
   }, [data, colorMap, scaleType, intervalType, minValue, maxValue, svgRef])
 
-  const prevFrameRef = useRef<number>(-1)
+  const prevFrameRef = useRef<number>(0)
   const prevSelectedCellRef = useRef<{ frame: number, col: number; row: number } | null>(null)
   const {
     mode,
@@ -93,17 +92,19 @@ export default function Heatmap({
     }
   })
 
-  useEffect(() => {
-    if (currentFrame !== prevFrameRef.current) {
-      prevFrameRef.current = currentFrame
-      onFrameChange(currentFrame)
-      requestDraw()
+  const handleFrameChange = (frame: number) => {
+    if (frame < 0 || frame >= numFrames){
+      frame = Math.max(0, Math.min(frame, numFrames - 1))
     }
-  }, [currentFrame])
+    if (frame === prevFrameRef.current) return
+    prevFrameRef.current = frame
+    onFrameChange(frame)
+    requestDraw()
+  }
 
   useEffect(() => {
-    if (selectedCell && selectedCell.frame !== currentFrame) {
-      setCurrentFrame(selectedCell.frame)
+    if (selectedCell) {
+      handleFrameChange(selectedCell.frame)
     }
     requestDraw()
   }, [selectedCell, data])
@@ -120,11 +121,11 @@ export default function Heatmap({
           const values = data.map(frame => frame[cell.col][cell.row])
           if (values.every(v => v !== null)) {
             onCellSelect({
-              frame: currentFrame,
+              frame: prevFrameRef.current,
               col: cell.col,
               row: cell.row
             })
-            prevSelectedCellRef.current = { frame: currentFrame, ...cell }
+            prevSelectedCellRef.current = { frame: prevFrameRef.current, ...cell }
           }
         } else {
           onCellSelect(null)
@@ -174,23 +175,27 @@ export default function Heatmap({
       return null
     }, [numCols, numRows])
 
-  const goToFrame = (frame: number) => {
-    setCurrentFrame(Math.max(0, Math.min(frame, numFrames - 1)))
-  }
-
   useEffect(() => {
     if (!isPlaying) return
-    const interval = setInterval(() => {
-      setCurrentFrame((prev) => {
-        const next = prev + 1
-        if (next >= numFrames) {
+
+    let animationFrameId: number
+    let lastTime = performance.now()
+
+    const animate = () => {
+      const now = performance.now()
+      if (now - lastTime >= INTERVAL) {
+        if (prevFrameRef.current < numFrames - 1) {
+          handleFrameChange(prevFrameRef.current + 1)
+        } else {
           setIsPlaying(false)
-          return prev
         }
-        return next
-      })
-    }, 500)
-    return () => clearInterval(interval)
+        lastTime += INTERVAL
+      }
+      animationFrameId = requestAnimationFrame(animate)
+    }
+    animationFrameId = requestAnimationFrame(animate)
+
+    return () => cancelAnimationFrame(animationFrameId)
   }, [isPlaying, numFrames])
 
   return (
@@ -275,8 +280,8 @@ export default function Heatmap({
       <div className="mt-4 flex-shrink-0">
         <FrameSlider
           totalFrames={numFrames}
-          currentFrame={currentFrame}
-          setCurrentFrame={goToFrame}
+          currentFrame={prevFrameRef.current}
+          setCurrentFrame={(frame) => handleFrameChange(frame)}
           isPlaying={isPlaying}
           setIsPlaying={setIsPlaying}
         />

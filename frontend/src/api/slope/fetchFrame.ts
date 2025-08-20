@@ -1,8 +1,6 @@
 export async function fetchFrame({
     frameIndex,
-    wfsIndex,
-    scaleType,
-    intervalType
+    wfsIndex
 }: {
     frameIndex: number
     wfsIndex: number
@@ -12,8 +10,6 @@ export async function fetchFrame({
     const form = new FormData()
     form.append("frame_index", frameIndex.toString())
     form.append("wfs_index", wfsIndex.toString())
-    form.append("interval_type", intervalType)
-    form.append("scale_type", scaleType)
 
     const res = await fetch("http://localhost:8000/slope/get-frame", {
         method: "POST",

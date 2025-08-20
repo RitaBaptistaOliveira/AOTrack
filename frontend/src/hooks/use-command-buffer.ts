@@ -119,7 +119,7 @@ export function useCommandBuffer(loopIndex: number) {
         for (let frameIndex = min; frameIndex <= max; frameIndex++) {
             if (!buffer.has(frameIndex)) {
                 try {
-                    const json = await fetchFrame({ frameIndex, loopIndex, scaleType, intervalType })
+                    const json = await fetchFrame({ frameIndex, loopIndex})
 
                     newBuffer.set(frameIndex, json.frame)
                 } catch (err) {

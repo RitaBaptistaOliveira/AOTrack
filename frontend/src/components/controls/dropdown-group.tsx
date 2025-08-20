@@ -1,68 +1,126 @@
-"use client"
-
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import type { ColorMap, IntervalType, ScaleType } from "@/types/visualization"
 import CustomSelect from "./custom-select"
 
+/**
+ * Props for the {@link SelectWithTooltip} component.
+ *
+ * @template T - A string literal type representing the value type of the select. In this case, it can be any of the types defined in `ColorMap`, `ScaleType`, or `IntervalType`.
+*/
+interface SelectProps<T extends string> {
+  /** The currently selected value. */
+  value: T
+  /**
+   * Callback triggered when a new value is selected.
+   * @param value - The newly selected value.
+   */
+  onChange: (value: T) => void
+  /** Tooltip text describing the select's purpose. */
+  tooltip: string
+  /** The list of selectable options with labels and values. */
+  options: { label: string; value: T }[]
+  /** Optional CSS class for styling the select trigger. */
+  className?: string
+}
+
+/**
+ * A generic select component with an integrated tooltip.
+ *
+ * @template T - A string literal type representing the value type of the select. In this case, it can be any of the types defined in `ColorMap`, `ScaleType`, or `IntervalType`.
+ *
+ * @param props - The props for configuring the select defined in {@link SelectProps}.
+ * @returns A select dropdown wrapped in a tooltip.
+ */
+function SelectWithTooltip<T extends string>({ value, onChange, tooltip, options, className }: SelectProps<T>) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Select value={value} onValueChange={(val) => onChange(val as T)}>
+            <SelectTrigger className={className}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
+/**
+ * A group of dropdowns for controlling visualization parameters.
+ *
+ * This component allows the user to:
+ * - Change the scale type
+ * - Change the interval type
+ * - Change the color map
+ *
+ * It uses {@link useChartInteraction} to read and update the current chart settings.
+ *
+ * @returns JSX element containing the dropdown group.
+ */
 export default function DropdownGroup() {
   const { colorMap, setColorMap, intervalType, setIntervalType, scaleType, setScaleType } = useChartInteraction()
+
+  /** Available scale type options. */
+  const scaleOptions: { label: string, value: ScaleType }[] = [
+    { label: "Linear", value: "linear" },
+    { label: "Log", value: "log" },
+    { label: "Square Root", value: "sqrt" },
+    { label: "Squared", value: "squared" },
+    { label: "ASINH", value: "asinh" },
+    { label: "Sinh", value: "sinh" },
+    // { label: "Hist Eq.", value: "histequal" },
+    { label: "Log Exp", value: "logexp" },
+  ]
+
+  /** Available color map options. */
+  const colorMapOptions: { label: string, value: ColorMap }[] = [
+    { label: "Viridis", value: "viridis" },
+    { label: "Inferno", value: "inferno" },
+    { label: "Greys", value: "greys" },
+    { label: "Blues", value: "blues" },
+    { label: "Reds", value: "reds" },
+    { label: "Greens", value: "greens" },
+    { label: "Rainbow", value: "rainbow" },
+  ]
+
   return (
     <div className="flex items-center gap-2">
-      <Select value={scaleType} onValueChange={(value) => { setScaleType(value as ScaleType)}}>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <SelectTrigger className="h-8 text-xs w-24">
-                <SelectValue placeholder="Scale" />
-              </SelectTrigger>
-            </TooltipTrigger>
-            <TooltipContent>Scale transformation</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <SelectContent>
-          <SelectItem value="linear">Linear</SelectItem>
-          <SelectItem value="log">Log</SelectItem>
-          <SelectItem value="sqrt">Square Root</SelectItem>
-          <SelectItem value="squared">Squared</SelectItem>
-          <SelectItem value="asinh">ASINH</SelectItem>
-          <SelectItem value="sinh">Sinh</SelectItem>
-          {/* <SelectItem value="histequal">Hist Eq.</SelectItem> */}
-          <SelectItem value="logexp">Log Exp</SelectItem>
-        </SelectContent>
-      </Select>
+      <SelectWithTooltip
+        value={scaleType}
+        onChange={setScaleType}
+        tooltip="Change the scale type"
+        options={scaleOptions}
+        className="h-8 text-xs w-32"
+      />
 
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <CustomSelect value={intervalType} onValueChange={(value) => { setIntervalType(value as IntervalType)}} />
+            <CustomSelect value={intervalType} onValueChange={(value) => { setIntervalType(value as IntervalType) }} />
           </TooltipTrigger>
-          <TooltipContent>Interval type</TooltipContent>
+          <TooltipContent>Change the interval</TooltipContent>
         </Tooltip>
       </TooltipProvider>
 
-      <Select value={colorMap} onValueChange={(value) => {setColorMap(value as ColorMap)}}>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <SelectTrigger className="h-8 text-xs w-24">
-                <SelectValue placeholder="Color" />
-              </SelectTrigger>
-            </TooltipTrigger>
-            <TooltipContent>Colormap</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-        <SelectContent>
-          <SelectItem value="viridis">Viridis</SelectItem>
-          <SelectItem value="inferno">Inferno</SelectItem>
-          <SelectItem value="greys">Greys</SelectItem>
-          <SelectItem value="blues">Blues</SelectItem>
-          <SelectItem value="reds">Reds</SelectItem>
-          <SelectItem value="greens">Greens</SelectItem>
-          <SelectItem value="rainbow">Rainbow</SelectItem>
-        </SelectContent>
-      </Select>
+      <SelectWithTooltip
+        value={colorMap}
+        onChange={setColorMap}
+        tooltip="Change the color map"
+        options={colorMapOptions}
+        className="h-8 text-xs w-32"
+      />
     </div>
   )
 }

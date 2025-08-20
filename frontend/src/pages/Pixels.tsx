@@ -14,6 +14,7 @@ import { fetchTile } from '@/api/pixel/fetchTile'
 
 
 export default function Pixels() {
+
   const { wfs } = useAoSession()
   const frameBuffer = useFrameBuffer(wfs)
   const [currentFrame, setCurrentFrame] = useState(0)
@@ -21,6 +22,13 @@ export default function Pixels() {
   const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number } | null>(null)
   const currentFrameData = frameBuffer.getFrame(currentFrame)
   const { scaleType, intervalType } = useChartInteraction()
+  const [displayFrameData, setDisplayFrameData] = useState<number[][] | null>(null);
+
+  useEffect(() => {
+    if (currentFrameData) {
+      setDisplayFrameData(currentFrameData);
+    }
+  }, [currentFrameData])
 
   const [meta, setMeta] = useState<{
     numFrames: number
@@ -35,6 +43,12 @@ export default function Pixels() {
       setMeta(frameBuffer.meta)
     }
   }, [frameBuffer.meta])
+
+  const handleSetCurrentFrame = useCallback((frame: number) => {
+    setCurrentFrame(frame)
+    setSelectedCell(prev => prev ? { ...prev, frame } : null)
+    setSelectedPoint(prev => prev ? { ...prev, frame } : null)
+  }, [])
 
   const handleCellSelect = useCallback(async (selected: { frame: number, col: number, row: number } | null) => {
     setSelectedCell(selected)
@@ -70,12 +84,6 @@ export default function Pixels() {
     }
   }, [meta])
 
-  const handleFrameChange = useCallback((frame: number) => {
-    setCurrentFrame(frame)
-    setSelectedCell(prev => prev ? { ...prev, frame } : null)
-    setSelectedPoint(prev => prev ? { ...prev, frame } : null)
-  }, [])
-
   const handleFetchTile = useCallback(async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
     try {
       const json = await fetchTile({
@@ -85,7 +93,7 @@ export default function Pixels() {
         indexEnd,
         wfsIndex: wfs
       })
-      
+
       return [json.tile]
     }
     catch (err) {
@@ -102,16 +110,16 @@ export default function Pixels() {
     <DashboardGrid variant="default">
 
       <GridItem area="a">
-        {currentFrameData && meta && (
+        {displayFrameData && meta && (
           <Heatmap
-            data={currentFrameData ? [currentFrameData] : []}
+            data={displayFrameData ? [displayFrameData] : []}
             numRows={meta.numRows}
             numCols={meta.numCols}
             numFrames={meta.numFrames}
             minValue={meta.overallMin}
             maxValue={meta.overallMax}
             onCellSelect={handleCellSelect}
-            onFrameChange={handleFrameChange}
+            onFrameChange={handleSetCurrentFrame}
             selectedCell={selectedCell}
           />
         )}

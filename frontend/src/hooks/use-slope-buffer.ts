@@ -98,9 +98,7 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
       try {
         const res = await fetchSlopePointStats({
           wfsIndex,
-          index,
-          intervalType,
-          scaleType,
+          index
         })
         setPointData(res)
       } catch (err) {

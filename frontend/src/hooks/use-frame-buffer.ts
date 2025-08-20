@@ -1,4 +1,3 @@
-import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import { useCallback, useEffect, useState } from "react"
 import { fetchDefaultStats } from "@/api/pixel/fetchDefaultStats"
 import { fetchPointStats } from "@/api/pixel/fetchPointStats"
@@ -35,8 +34,6 @@ type PointStats = {
 }
 
 export function useFrameBuffer(wfsIndex: number) {
-    const { intervalType, scaleType } = useChartInteraction()
-    // const buffer = useRef(new Map<number, number[][]>())
     const [meta, setMeta] = useState<FrameMeta | undefined>()
     const [stats, setStats] = useState<DefaultStats | undefined>()
     const [buffer, setBuffer] = useState<Map<number, number[][]>>(new Map())
@@ -88,7 +85,7 @@ export function useFrameBuffer(wfsIndex: number) {
             }
         }
         fetchStats()
-    }, [wfsIndex, intervalType, scaleType])
+    }, [wfsIndex])
 
     const fetchPointData = useCallback(
         async (col: number, row: number) => {
@@ -96,9 +93,7 @@ export function useFrameBuffer(wfsIndex: number) {
                 const res = await fetchPointStats({
                     wfsIndex,
                     col,
-                    row,
-                    intervalType,
-                    scaleType
+                    row
                 })
                 setPointData(res)
             } catch (err) {
@@ -109,6 +104,43 @@ export function useFrameBuffer(wfsIndex: number) {
         [wfsIndex]
     )
 
+    const fetchSingleFrameImmediate = useCallback(async (frameIndex: number) => {
+        try {
+            const json = await fetchFrame({ frameIndex, wfsIndex })
+            setBuffer(prev => {
+                const newBuffer = new Map(prev)
+                newBuffer.set(frameIndex, json.frame)
+                return newBuffer
+            })
+            return json.frame
+        } catch (err) {
+            console.error(`Failed to fetch frame ${frameIndex}:`, err)
+            return null
+        }
+    }, [fetchFrame])
+
+
+    const fetchMultipleFrames = useCallback(async (frameIndices: number[], min: number, max: number) => {
+        const results = await Promise.allSettled(
+            frameIndices.map(i => fetchFrame({ frameIndex: i, wfsIndex }))
+        )
+
+        setBuffer(prev => {
+            const newBuffer = new Map(prev)
+
+            results.forEach((res, idx) => {
+                if (res.status === "fulfilled") {
+                    newBuffer.set(frameIndices[idx], res.value.frame);
+                }
+            })
+
+            for (const key of newBuffer.keys()) {
+                if (key < min || key > max) newBuffer.delete(key)
+            }
+            return newBuffer
+        })
+    }, [fetchFrame])
+
     const preloadAround = async (center: number, radius = 5) => {
         const min = Math.max(0, center - radius)
         const max = Math.min(
@@ -116,28 +148,22 @@ export function useFrameBuffer(wfsIndex: number) {
             meta && typeof meta.numFrames === "number" ? meta.numFrames - 1 : 1
         )
 
-        const newBuffer = new Map(buffer)
+        if (!buffer.has(center)) {
+            await fetchSingleFrameImmediate(center)
+        }
 
+
+        const neighbors = []
         for (let frameIndex = min; frameIndex <= max; frameIndex++) {
-            if (!buffer.has(frameIndex)) {
-                try {
-                    const json = await fetchFrame({ frameIndex, wfsIndex, scaleType, intervalType })
-
-                    newBuffer.set(frameIndex, json.frame)
-                } catch (err) {
-                    console.error(`Failed to fetch frame ${frameIndex}:`, err)
-                }
+            if (!buffer.has(frameIndex) && frameIndex !== center) {
+                neighbors.push(frameIndex)
             }
         }
 
-        for (const key of newBuffer.keys()) {
-            if (key < min || key > max) newBuffer.delete(key)
+        if (neighbors.length > 0) {
+            fetchMultipleFrames(neighbors, min, max)
         }
-
-        setBuffer(newBuffer)
     }
-
-
 
     return {
         getFrame: (i: number) => buffer.get(i),

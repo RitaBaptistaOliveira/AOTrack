@@ -1,123 +1,134 @@
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useState } from "react"
 
+/**
+ * Props for FrameSlider component.
+ */
 interface FrameSliderProps {
+  /** Total number of frames available */
   totalFrames: number
+  /** Currently selected frame */
   currentFrame: number
+  /** Function to update the current frame */
   setCurrentFrame: (frame: number) => void
-  isPlaying?: boolean
-  setIsPlaying?: (playing: boolean) => void
+  /** Whether the animation is currently playing */
+  isPlaying: boolean
+  /** Function to toggle play/pause state */
+  setIsPlaying: (playing: boolean) => void
 }
 
-export default function FrameSlider({totalFrames, currentFrame, setCurrentFrame, isPlaying = false, setIsPlaying,}: FrameSliderProps) {
+/**
+ * Generic icon button used for frame controls
+ * @param onClick - Callback when button is clicked
+ * @param children - Icon to render inside the button
+ */
+function IconButton({ onClick, children }: { onClick: () => void, children: React.ReactNode }) {
+  return (
+    <Button variant="outline" size="icon" onClick={onClick} className="h-8 w-8">
+      {children}
+    </Button>
+  )
+}
+
+/**
+ * Displays the current frame and allows direct editing via input
+ * @param totalFrames - Total number of frames
+ * @param currentFrame - Currently selected frame
+ * @param onChange - Callback when a new frame is submitted
+ */
+function FrameDisplay({ totalFrames, currentFrame, onChange }: { totalFrames: number, currentFrame: number, onChange: (frame: number) => void }) {
   const [isEditing, setIsEditing] = useState(false)
-  const [inputValue, setInputValue] = useState((currentFrame).toString())
+  const [inputValue, setInputValue] = useState("")
 
-  const goToFrame = useCallback((frame: number) => {
-    if (totalFrames <= 0) return;
-    const frameNum = Math.max(0, Math.min(frame, totalFrames - 1))
-    setCurrentFrame(frameNum)
-    setInputValue((frameNum).toString())
-  }, [totalFrames, setCurrentFrame])
-
-  const handleInputSubmit = useCallback(() => {
+  const handleSubmit = () => {
+    console.log("Submitting frame:", inputValue)
     const num = parseInt(inputValue)
-    if (!isNaN(num)) goToFrame(num)
-    else setInputValue((currentFrame).toString())
+    console.log("Parsed frame number:", num)
+    if (!isNaN(num)) {
+      onChange(num)
+      console.log
+    }
     setIsEditing(false)
-  }, [inputValue, currentFrame, goToFrame])
+  }
 
-  const togglePlayPause = () => {
-    setIsPlaying?.(!isPlaying)
-  };
+  return (
+    <div className="text-xs w-20 text-center">
+      {isEditing ? (
+        <div className="flex items-center justify-center gap-1">
+          <input
+            type="number"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onBlur={handleSubmit}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            className="h-8 w-8 text-center border rounded text-sm"
+            autoFocus
+            min={0}
+            max={totalFrames - 1}
+          />
+          <span>/ {totalFrames - 1}</span>
+        </div>
+      ) : (
+        <div className="flex items-center justify-center gap-1">
+          <Button
+            variant="default"
+            size="icon"
+            onClick={() => setIsEditing(true)}
+            className="h-8 w-8 border font-normal"
+          >
+            {currentFrame}
+          </Button>
+          <span>/ {totalFrames - 1}</span>
+        </div>
+      )}
+    </div>
+  )
+}
 
-  useEffect(() => {
-    if (!isPlaying || !setIsPlaying) return;
-
-    const interval = setInterval(() => {
-      const next = currentFrame + 1;
-      if (next >= totalFrames) {
-        setIsPlaying(false);
-      } else setCurrentFrame(next);
-    }, 100); // speed (ms)
-
-    return () => clearInterval(interval);
-  }, [isPlaying, totalFrames, setCurrentFrame, currentFrame, setIsPlaying]);
+/**
+ * FrameSlider component allows navigation through frames with a slider and control buttons.
+ * Supports play/pause, skipping, and direct input.
+ */
+export default function FrameSlider({ totalFrames, currentFrame, setCurrentFrame, isPlaying = false, setIsPlaying }: FrameSliderProps) {
 
   return (
     <div className="space-y-3">
-      {/* Frame slider */}
-      <div>
-        <Slider
-          value={[currentFrame]}
-          min={0}
-          max={totalFrames - 1}
-          step={1}
-          onValueChange={(value) => goToFrame(value[0])}
-          className="mb-2"
-        />
-      </div>
+      <Slider
+        value={[currentFrame]}
+        min={0}
+        max={totalFrames - 1}
+        step={1}
+        onValueChange={(v) => setCurrentFrame(v[0])}
+        className="mb-2"
+      />
 
       {/* Navigation controls */}
       <div className="flex items-center justify-center gap-2">
 
         {/* Play/Pause Button */}
-        {setIsPlaying && (
-        <Button variant="outline" size="icon" onClick={togglePlayPause} className="h-8 w-8 mr-2">
+        <IconButton onClick={() => setIsPlaying(!isPlaying)}>
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </Button>
-        )}
+        </IconButton>
 
-        {/* Frame Navigation Buttons */}
-
-        { /* Skip to Start and Previous Frame */}
-        <Button variant="outline" size="icon" onClick={() => goToFrame(0)} className="h-8 w-8">
+        {/* Start / Previous */}
+        <IconButton onClick={() => setCurrentFrame(0)}>
           <SkipBack className="h-4 w-4" />
-        </Button>
-
-        <Button variant="outline" size="icon" onClick={() => goToFrame(currentFrame - 1)} className="h-8 w-8">
+        </IconButton>
+        <IconButton onClick={() => setCurrentFrame(currentFrame - 1)}>
           <ChevronLeft className="h-4 w-4" />
-        </Button>
+        </IconButton>
 
-        {/* Editable Frame Display */}
-        <div className="text-xs w-20 text-center">
-          {isEditing ? (
-            <div className="w-full flex flex-row items-center justify-center gap-1">
-              <input
-                type="number"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onBlur={handleInputSubmit}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleInputSubmit()
-                }}
-                className="h-8 w-8 flex-auto text-center border rounded text-sm"
-                autoFocus
-                min={1}
-                max={totalFrames}
-              />
-              <div>/ {totalFrames}</div>
-            </div>
-          ) : (
-            <div className="w-full flex flex-row items-center justify-center gap-1">
-              <Button variant="default" size="icon" onClick={() => setIsEditing(true)} className="h-8 w-8 border font-normal">
-                {currentFrame}
-              </Button>
-              <div>/ {totalFrames - 1}</div>
-            </div>
-          )}
-        </div>
+        <FrameDisplay totalFrames={totalFrames} currentFrame={currentFrame} onChange={setCurrentFrame} />
 
-        {/* Next Frame and Skip to End */}
-        <Button variant="outline" size="icon" onClick={() => goToFrame(currentFrame + 1)} className="h-8 w-8">
+        {/* Next / End */}
+        <IconButton onClick={() => setCurrentFrame(currentFrame + 1)}>
           <ChevronRight className="h-4 w-4" />
-        </Button>
-
-        <Button variant="outline" size="icon" onClick={() => goToFrame(totalFrames - 1)} className="h-8 w-8">
+        </IconButton>
+        <IconButton onClick={() => setCurrentFrame(totalFrames - 1)}>
           <SkipForward className="h-4 w-4" />
-        </Button>
+        </IconButton>
       </div>
     </div>
   )

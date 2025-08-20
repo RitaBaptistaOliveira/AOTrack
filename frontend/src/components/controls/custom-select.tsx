@@ -38,7 +38,6 @@ interface CustomSelectProps {
  * - Mimics the highlights of the selected or hovered options of shadcn.
  * - Allows percentile adjustment with validation.
  *
- * @component
  */
 export default function CustomSelect({ value, onValueChange }: CustomSelectProps) {
 

@@ -3,15 +3,11 @@ import type { DataPoint } from "@/types/visualization"
 export async function fetchPointStats({
   wfsIndex,
   col,
-  row,
-  intervalType,
-  scaleType,
+  row
 }: {
   wfsIndex: number
   col: number
   row: number
-  intervalType: string
-  scaleType: string
 }): Promise<{
   point_means: DataPoint[]
   stats: {
@@ -27,8 +23,6 @@ export async function fetchPointStats({
   formData.append("wfs_index", wfsIndex.toString())
   formData.append("col", col.toString())
   formData.append("row", row.toString())
-  formData.append("interval_type", intervalType)
-  formData.append("scale_type", scaleType)
 
   const res = await fetch("http://localhost:8000/pixel/get-point-stats", {
     method: "POST",

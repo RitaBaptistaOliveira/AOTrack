@@ -4,8 +4,6 @@ export async function fetchFrame({
 }: {
     frameIndex: number
     loopIndex: number
-    scaleType: string
-    intervalType: string
 }): Promise<{ frame: number[][] }> {
     const form = new FormData()
     form.append("frame_index", frameIndex.toString())
