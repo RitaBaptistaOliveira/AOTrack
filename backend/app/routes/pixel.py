@@ -15,7 +15,7 @@ async def get_pixel_frame(request: Request):
 
     form = await request.form()
 
-    wfs_index = int(form.get("wfs_index", 0))
+    wfs_index = int(form.get("index", 0))
     frame_index = int(form.get("frame_index", 0))
 
     try:
@@ -50,7 +50,7 @@ async def get_flat_tile_post(request: Request):
     frame_end = int(form.get("frame_end"))
     index_start = int(form.get("index_start"))
     index_end = int(form.get("index_end"))
-    wfs_index = int(form.get("wfs_index", 0))
+    wfs_index = int(form.get("index", 0))
 
     if frame_end <= frame_start:
         raise HTTPException(status_code=400, detail="Invalid frame range")
@@ -135,7 +135,7 @@ async def get_default_values(request: Request):
         raise HTTPException(status_code=400, detail="No active session or file path")
 
     form = await request.form()
-    wfs_index = int(form.get("wfs_index", 0))
+    wfs_index = int(form.get("index", 0))
 
     try:
         system = aotpy.AOSystem.read_from_file(session.file_path)
@@ -156,16 +156,16 @@ async def get_default_values(request: Request):
 @router.post("/pixel/get-point-stats")
 async def get_pixel_point_stats(request: Request):
     session = await get_session_from_cookie(request)
-
+    
     if session is None or session.file_path is None:
         raise HTTPException(status_code=400, detail="No active session or file path")
 
     form = await request.form()
 
     try:
-        wfs_index = int(form.get("wfs_index", 0))
-        col = int(form.get("col"))
-        row = int(form.get("row"))
+        wfs_index = int(form.get("index", 0))
+        col = int(form.get("point_col"))
+        row = int(form.get("point_row"))
 
         system = aotpy.AOSystem.read_from_file(session.file_path)
         data = system.wavefront_sensors[wfs_index].detector.pixel_intensities.data
@@ -188,7 +188,7 @@ async def get_pixel_point_stats(request: Request):
         line_data = [{"x": int(i), "y": float(v)} for i, v in enumerate(intensities)]
 
         return JSONResponse({
-            "point_means": line_data,
+            "point_vals": line_data,
             "stats": stats
         })
 

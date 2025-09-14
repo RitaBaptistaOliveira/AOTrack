@@ -21,6 +21,7 @@ interface HeatmapVisualizationProps {
   onCellSelect: (cell: { frame: number, col: number, row: number } | null) => void
   onFrameChange: (frame: number) => void
   selectedCell: { frame: number, col: number, row: number } | null
+  formatHover: (cell: { col: number, row: number, values: number[] }) => React.ReactNode
 }
 
 export default function Heatmap({
@@ -32,7 +33,8 @@ export default function Heatmap({
   maxValue,
   onCellSelect,
   onFrameChange,
-  selectedCell
+  selectedCell,
+  formatHover
 }: HeatmapVisualizationProps) {
 
   const { colorMap, scaleType, intervalType } = useChartInteraction()
@@ -93,7 +95,7 @@ export default function Heatmap({
   })
 
   const handleFrameChange = (frame: number) => {
-    if (frame < 0 || frame >= numFrames){
+    if (frame < 0 || frame >= numFrames) {
       frame = Math.max(0, Math.min(frame, numFrames - 1))
     }
     if (frame === prevFrameRef.current) return
@@ -148,6 +150,8 @@ export default function Heatmap({
       } else {
         setHoveredCell(null)
       }
+    } else {
+      setHoveredCell(null)
     }
   }, [hoverPos])
 
@@ -202,7 +206,7 @@ export default function Heatmap({
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex justify-between items-center flex-shrink-0">
-        <h2 className="text-lg font-semibold">Heatmap</h2>
+        <h2 className="text-lg font-semibold">Frame View (Frame {prevFrameRef.current})</h2>
         <div className="flex gap-1">
           <DropdownGroup />
           <Button variant="ghost" size="icon" onClick={() => setShowControlBar(!showControlBar)}>
@@ -247,8 +251,7 @@ export default function Heatmap({
           </div>
           {hoveredCell && showTooltips && (
             <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none">
-              Cell ({hoveredCell.col}, {hoveredCell.row}): Intensity: {hoveredCell.values[0]?.toFixed(2)}
-              {/* , Slope Y: {hoveredCell.values[1]?.toFixed(2)} */}
+              {formatHover(hoveredCell)}
             </div>
           )}
 

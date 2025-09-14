@@ -1,30 +1,33 @@
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
 import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react"
-import { useState } from "react"
+import { useState, type ReactElement, type ReactNode } from "react"
 
 /**
- * Props for FrameSlider component.
+ * Props for {@link FrameSlider}.
  */
 interface FrameSliderProps {
   /** Total number of frames available */
   totalFrames: number
   /** Currently selected frame */
   currentFrame: number
-  /** Function to update the current frame */
+  /** Update the current frame */
   setCurrentFrame: (frame: number) => void
-  /** Whether the animation is currently playing */
+  /** A boolean indicating if the animation is currently playing */
   isPlaying: boolean
   /** Function to toggle play/pause state */
   setIsPlaying: (playing: boolean) => void
 }
 
 /**
- * Generic icon button used for frame controls
- * @param onClick - Callback when button is clicked
- * @param children - Icon to render inside the button
+ * Renders a generic icon button used for frame controls
+ * 
+ * @param onClick Callback when button is clicked
+ * @param children Icon to render inside the button
+ * 
+ * @category Component
  */
-function IconButton({ onClick, children }: { onClick: () => void, children: React.ReactNode }) {
+function IconButton({ onClick, children }: { onClick: () => void, children: ReactNode }): ReactElement {
   return (
     <Button variant="outline" size="icon" onClick={onClick} className="h-8 w-8">
       {children}
@@ -33,15 +36,22 @@ function IconButton({ onClick, children }: { onClick: () => void, children: Reac
 }
 
 /**
- * Displays the current frame and allows direct editing via input
+ * Renders the current frame number and allows direct editing via input
+ * 
  * @param totalFrames - Total number of frames
  * @param currentFrame - Currently selected frame
  * @param onChange - Callback when a new frame is submitted
+ * 
+ * @category Component
  */
-function FrameDisplay({ totalFrames, currentFrame, onChange }: { totalFrames: number, currentFrame: number, onChange: (frame: number) => void }) {
+function FrameDisplay({ totalFrames, currentFrame, onChange }: { totalFrames: number, currentFrame: number, onChange: (frame: number) => void }): ReactElement {
   const [isEditing, setIsEditing] = useState(false)
   const [inputValue, setInputValue] = useState("")
 
+  /**
+   * Handles the submission of a new frame number.
+   * Parses the input value and updates the current frame if valid.
+   */
   const handleSubmit = () => {
     console.log("Submitting frame:", inputValue)
     const num = parseInt(inputValue)
@@ -88,10 +98,13 @@ function FrameDisplay({ totalFrames, currentFrame, onChange }: { totalFrames: nu
 }
 
 /**
- * FrameSlider component allows navigation through frames with a slider and control buttons.
+ * Render a controller that allows navigation through frames with a slider and control buttons.
  * Supports play/pause, skipping, and direct input.
+ * 
+ * @param props The props for configuring the slider defined in {@link FrameSliderProps}.
+ * @category Component
  */
-export default function FrameSlider({ totalFrames, currentFrame, setCurrentFrame, isPlaying = false, setIsPlaying }: FrameSliderProps) {
+export default function FrameSlider({ totalFrames, currentFrame, setCurrentFrame, isPlaying = false, setIsPlaying }: FrameSliderProps): ReactElement {
 
   return (
     <div className="space-y-3">

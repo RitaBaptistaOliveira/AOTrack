@@ -109,6 +109,8 @@ export function useCanvasInteractions({ externalCanvasRefs, draw }: UseCanvasInt
   }
 
   const handleMouseLeave = () => {
+    console.log("Mouse leave")
+    setHoverPos(null)
     isDraggingRef.current = false
     dragStartRef.current = null
   }

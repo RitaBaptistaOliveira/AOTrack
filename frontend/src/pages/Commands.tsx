@@ -6,7 +6,7 @@ import StatTable from '@/components/charts/stat-table'
 import { Card } from '@/components/ui/card'
 import { LineChart, BarChart3 } from "lucide-react"
 import { useAoSession } from '@/contexts/ao-session-context'
-import { fetchTile } from '@/api/command/fetchTile'
+import { fetchTile } from '@/api/fetchTile'
 import Heatmap from '@/components/charts/heatmap-chart'
 import TileHeatmap from '@/components/charts/tile-heatmap-chart'
 import LinesChart from '@/components/charts/line-chart'
@@ -91,12 +91,13 @@ export default function Commands() {
 
   const handleFetchTile = useCallback(async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
     try {
-      const json = await fetchTile({
+      const json = await fetchTile<number[][]>({
         frameStart,
         frameEnd,
         indexStart,
         indexEnd,
-        loopIndex: wfc
+        index: wfc,
+        page: "command"
       })
 
       return [json.tile]
@@ -126,6 +127,12 @@ export default function Commands() {
             onCellSelect={handleCellSelect}
             onFrameChange={handleFrameChange}
             selectedCell={selectedCell}
+            formatHover={(cell) => (
+              <div className="text-xs">
+                <div>Col: {cell.col}, Row: {cell.row}</div>
+                <div>Value: {cell.values[0].toPrecision(2)} m</div>
+              </div>
+            )}
           />
           :
           <div className='text-center'>
@@ -144,6 +151,12 @@ export default function Commands() {
             onPointSelect={handlePointSelect}
             onFetchTile={handleFetchTile}
             selectedPoint={selectedPoint}
+            formatHover={(cell) => (
+              <div className="text-xs">
+                <div>Index: {cell.index}</div>
+                <div>Value: {cell.values[0].toPrecision(2)} m</div>
+              </div>
+            )}
           />
         }
       </GridItem>
@@ -152,7 +165,7 @@ export default function Commands() {
         <GridItem area="c">
           {frameBuffer.pointData &&
             <LinesChart
-              data1X={frameBuffer.pointData.point_means}
+              data1X={frameBuffer.pointData.point_vals}
               data1Y={[]}
               data2X={[]}
               data2Y={[]}
@@ -179,7 +192,7 @@ export default function Commands() {
           <GridItem area="d">
             {frameBuffer.pointData && meta && (
               <Histogram
-                data1X={frameBuffer.pointData.point_means}
+                data1X={frameBuffer.pointData.point_vals}
                 data1Y={[]}
                 data2X={[]}
                 data2Y={[]}

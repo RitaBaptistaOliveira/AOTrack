@@ -15,7 +15,7 @@ async def get_slope_frame(request: Request):
 
     form = await request.form()
 
-    wfs_index = int(form.get("wfs_index", 0))
+    wfs_index = int(form.get("index", 0))
     frame_index = int(form.get("frame_index", 0))
 
     try:
@@ -65,7 +65,7 @@ async def get_flat_tile_post(request: Request):
     frame_end = int(form.get("frame_end"))
     index_start = int(form.get("index_start"))
     index_end = int(form.get("index_end"))
-    wfs_index = int(form.get("wfs_index", 0))
+    wfs_index = int(form.get("index", 0))
     
     if frame_end <= frame_start:
         raise HTTPException(status_code=400, detail="Invalid frame range")
@@ -96,7 +96,7 @@ async def get_flat_tile_post(request: Request):
         gc.collect()
 
         return JSONResponse({
-            "tiles": [x_sliced.tolist(), y_sliced.tolist()]
+            "tile": [x_sliced.tolist(), y_sliced.tolist()]
         })
     except Exception as e:
         print(f"Tile fetch error: {e}")
@@ -121,7 +121,8 @@ async def get_slope_meta(request: Request):
         if not (0 <= wfs_index < len(wfs_list)):
             raise HTTPException(status_code=400, detail=f"wfs_index {wfs_index} out of range")
 
-        measurements = sensor.measurements.data
+        meas = sensor.measurements
+        measurements = meas.data
         num_frames, dim, num_indices = measurements.shape
         overall_min = float(np.min(measurements))
         overall_max = float(np.max(measurements))
@@ -133,6 +134,10 @@ async def get_slope_meta(request: Request):
             mask_shape = subaperture_mask.shape
             if len(mask_shape) == 2:
                 num_cols, num_rows = mask_shape
+                
+        unit = None
+        if hasattr(meas, "unit") and meas.unit is not None:
+            unit = str(meas.unit)
         
         del system
         gc.collect()
@@ -149,6 +154,9 @@ async def get_slope_meta(request: Request):
             response["num_rows"] = num_rows
             response["num_cols"] = num_cols
             response["subaperture_mask"] = sensor.subaperture_mask.data.tolist()
+            
+        if unit is not None:
+            response["unit"] = unit
 
         return JSONResponse(response)
 
@@ -163,7 +171,7 @@ async def get_default_values(request: Request):
         raise HTTPException(status_code=400, detail="No active session or file path")
 
     form = await request.form()
-    wfs_index = int(form.get("wfs_index", 0))
+    wfs_index = int(form.get("index", 0))
 
     try:
         system = aotpy.AOSystem.read_from_file(session.file_path)
@@ -195,8 +203,8 @@ async def get_slope_point_stats(request: Request):
     form = await request.form()
 
     try:
-        wfs_index = int(form.get("wfs_index", 0))
-        index = int(form.get("index"))
+        wfs_index = int(form.get("index", 0))
+        point_index = int(form.get("point_index"))
 
         system = aotpy.AOSystem.read_from_file(session.file_path)
         measurements = system.wavefront_sensors[wfs_index].measurements.data
@@ -204,8 +212,8 @@ async def get_slope_point_stats(request: Request):
         del system
         gc.collect()
 
-        intensitiesX = measurements[:, 0, index]
-        intensitiesY = measurements[:, 1, index]
+        intensitiesX = measurements[:, 0, point_index]
+        intensitiesY = measurements[:, 1, point_index]
         
         stats = {
             "min": [float(np.min(intensitiesX)),float(np.min(intensitiesY))],
@@ -220,7 +228,7 @@ async def get_slope_point_stats(request: Request):
         line_dataY = [{"x": int(i), "y": float(v)} for i, v in enumerate(intensitiesY)]
 
         return JSONResponse({
-            "point_means": [line_dataX, line_dataY],
+            "point_vals": [line_dataX, line_dataY],
             "stats": stats
         })
 

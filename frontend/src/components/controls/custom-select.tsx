@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import Portal from "@/components/ui/portal"
 import type { IntervalType } from "@/types/visualization"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react"
 
 /**
  * Represents the available option types for the CustomSelect component.
@@ -28,29 +28,24 @@ interface CustomSelectProps {
 }
 
 /**
- * A custom dropdown select component for choosing the interval type
+ * Renders a custom dropdown item for choosing the interval type
  * between "MinMax", "Z-Scale", or a numeric "Percentile" option. 
  * 
- * The Percentile option includes an inline editable number input.
+ * The **percentile** option includes an inline editable number input.
  *
- * This component:
- * - Opens a dropdown when clicked.
- * - Mimics the highlights of the selected or hovered options of shadcn.
- * - Allows percentile adjustment with validation.
+ * This component mimics the highlights of the selected or hovered options of shadcn, but allows percentile adjustment with validation.
+ * 
+ * @param props The props for defining the select defined in {@link CustomSelectProps}.
  *
+ * @category Component
  */
-export default function CustomSelect({ value, onValueChange }: CustomSelectProps) {
+export default function CustomSelect({ value, onValueChange }: CustomSelectProps): ReactElement {
 
-    /** Whether the dropdown menu is open. */
     const [isOpen, setIsOpen] = useState(false)
     /** Position for rendering the dropdown portal. */
     const [position, setPosition] = useState({ top: 0, left: 0 })
-
-    /** Tracks which option is currently hovered in the dropdown. */
     const [hoveredOption, setHoveredOption] = useState<OptionType | null>(null)
-    /** Whether the dropdown is currently hovered. */
     const [isDropdownHovered, setIsDropdownHovered] = useState(false)
-    /** Determines the option type from the current value prop. */
     const currentOption: OptionType = value.startsWith("percentile-")
         ? "percentile"
         : (value as OptionType)
@@ -61,12 +56,10 @@ export default function CustomSelect({ value, onValueChange }: CustomSelectProps
         return isNaN(num) ? INITIAL_PERCENTILE : Math.max(1, Math.min(100, num))
     }, [value])
 
-    /** Input field string value for percentile editing. */
     const [inputValue, setInputValue] = useState(String(initialPercentile))
-    /** Numeric percentile value. */
     const [percentile, setPercentile] = useState(initialPercentile)
 
-    /** Ref to the button that triggers the dropdown. */
+
     const triggerRef = useRef<HTMLDivElement>(null)
     /** Ref to the dropdown portal content. */
     const portalContentRef = useRef<HTMLDivElement>(null)
@@ -102,6 +95,8 @@ export default function CustomSelect({ value, onValueChange }: CustomSelectProps
     /**
      * Handles change in percentile input field.
      * Only numeric values are allowed.
+     * 
+     * @param e The input change event.
      */
     const handlePercentileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setInputValue(e.target.value.replace(/[^0-9]/g, ""))
@@ -109,6 +104,9 @@ export default function CustomSelect({ value, onValueChange }: CustomSelectProps
 
     /**
      * Handles Enter key in percentile input to commit value and close dropdown.
+     * If Enter is pressed, it validates the input and commits the value.
+     * 
+     * @param e The keydown event.
      */
     const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Enter") {
@@ -122,6 +120,9 @@ export default function CustomSelect({ value, onValueChange }: CustomSelectProps
 
     /**
      * Handles clicking outside og the dropdown. If percentile is selected, then check input to commit value and close dropdown.
+     * If the click is outside the trigger or portal content, it closes the dropdown.
+     * 
+     * @param e The mouse event.
      */
     const handleClickOutside = (e: MouseEvent) => {
         if (!triggerRef.current?.contains(e.target as Node) && !portalContentRef.current?.contains(e.target as Node)) {
@@ -164,7 +165,7 @@ export default function CustomSelect({ value, onValueChange }: CustomSelectProps
      * @param option Option type.
      * @param extra Optional extra content (e.g. input field for percentile).
      */
-    const renderOption = (label: string, option: OptionType, extra?: React.ReactNode) => {
+    const renderOption = (label: string, option: OptionType, extra?: React.ReactNode): ReactElement => {
         const isSelected = currentOption === option
         const isHovered = hoveredOption === option
         const isHighlighted =
@@ -191,8 +192,10 @@ export default function CustomSelect({ value, onValueChange }: CustomSelectProps
             </div>)
     }
 
-
-    // Position dropdown on open
+    /**
+     * Handles layout updates for the dropdown position.
+     * Sets the position based on the trigger element's bounding rectangle.
+     */
     useLayoutEffect(() => {
         if (isOpen && triggerRef.current) {
             const rect = triggerRef.current.getBoundingClientRect()
@@ -203,7 +206,10 @@ export default function CustomSelect({ value, onValueChange }: CustomSelectProps
         }
     }, [isOpen])
 
-    // Handles closing the dropdown when clicking outside
+    /**
+     * Handles click outside the dropdown to close it.
+     * Adds event listener when dropdown is open, cleans up on unmount.
+     */
     useEffect(() => {
         if (isOpen) {
             document.addEventListener("click", handleClickOutside, true)

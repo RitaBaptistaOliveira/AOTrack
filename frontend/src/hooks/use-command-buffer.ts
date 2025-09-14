@@ -1,8 +1,8 @@
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import { useCallback, useEffect, useState } from "react"
-import { fetchDefaultStats } from "@/api/command/fetchDefaultStats"
-import { fetchPointStats } from "@/api/command/fetchPointStats"
-import { fetchFrame } from "@/api/command/fetchFrame"
+import { fetchDefaultStats } from "@/api/fetchDefaultStats"
+import { fetchPointStats } from "@/api/fetchPointStats"
+import { fetchFrame } from "@/api/fetchFrame"
 import type { DataPoint } from "@/types/visualization"
 
 type FrameMeta = {
@@ -26,7 +26,7 @@ type DefaultStats = {
 }
 
 type PointStats = {
-    point_means: DataPoint[]
+    point_vals: DataPoint[]
     stats: {
         min: number
         max: number
@@ -75,7 +75,7 @@ export function useCommandBuffer(loopIndex: number) {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const result = await fetchDefaultStats({loopIndex})
+                const result = await fetchDefaultStats<number>({index: loopIndex, page: "command"})
                 setStats({
                     min: result.min,
                     max: result.max,
@@ -94,9 +94,10 @@ export function useCommandBuffer(loopIndex: number) {
     const fetchPointData = useCallback(
         async (index: number) => {
             try {
-                const res = await fetchPointStats({
-                    loopIndex,
-                    index
+                const res = await fetchPointStats<DataPoint[], number>({
+                    index: loopIndex,
+                    point_index: index,
+                    page: "command"
                 })
                 setPointData(res)
             } catch (err) {
@@ -119,7 +120,7 @@ export function useCommandBuffer(loopIndex: number) {
         for (let frameIndex = min; frameIndex <= max; frameIndex++) {
             if (!buffer.has(frameIndex)) {
                 try {
-                    const json = await fetchFrame({ frameIndex, loopIndex})
+                    const json = await fetchFrame<{ frame: number[][] }>({ frameIndex, index: loopIndex, page: "command" })
 
                     newBuffer.set(frameIndex, json.frame)
                 } catch (err) {

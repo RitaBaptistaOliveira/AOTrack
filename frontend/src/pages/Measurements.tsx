@@ -10,7 +10,7 @@ import Histogram from '@/components/charts/hist-chart'
 import { Card } from '@/components/ui/card'
 import { LineChart, BarChart3 } from "lucide-react"
 import { useAoSession } from '@/contexts/ao-session-context'
-import { fetchTile } from '@/api/slope/fetchTile'
+import { fetchTile } from '@/api/fetchTile'
 
 export default function Measurements() {
   const { wfs } = useAoSession()
@@ -30,10 +30,14 @@ export default function Measurements() {
     numCols?: number
     numRows?: number
     subapertureMask?: number[][]
+    unit?: string
   } | null>(null)
 
   useEffect(() => {
     if (frameBuffer.meta) {
+      if (frameBuffer.meta.unit === undefined) {
+        frameBuffer.meta.unit = "(raw)"
+      }
       setMeta(frameBuffer.meta)
     }
   }, [frameBuffer.meta])
@@ -93,15 +97,16 @@ export default function Measurements() {
 
   const handleFetchTile = useCallback(async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
     try {
-      const json = await fetchTile({
+      const json = await fetchTile<number[][][]>({
         frameStart,
         frameEnd,
         indexStart,
         indexEnd,
-        wfsIndex: wfs
+        index: wfs,
+        page: "slope"
       })
 
-      return json.tiles
+      return json.tile
     }
     catch (err) {
       console.warn("Fetch tiles error:", err)
@@ -129,6 +134,13 @@ export default function Measurements() {
             onCellSelect={handleCellSelect}
             onFrameChange={handleFrameChange}
             selectedCell={selectedCell}
+            formatHover={(cell) => (
+              <div className="text-xs">
+                <div>Col: {cell.col}, Row: {cell.row}</div>
+                <div>X Value: {cell.values[0].toPrecision(2)} {meta.unit}</div>
+                <div>Y Value: {cell.values[1].toPrecision(2)} {meta.unit}</div>
+              </div>
+            )}
           />
           :
           <div className='text-center'>
@@ -148,6 +160,13 @@ export default function Measurements() {
             onPointSelect={handlePointSelect}
             onFetchTile={handleFetchTile}
             selectedPoint={selectedPoint}
+            formatHover={(cell) => (
+              <div className="text-xs">
+                <div>Index: {cell.index}</div>
+                <div>X Value: {cell.values[0].toPrecision(2)} {meta.unit}</div>
+                <div>Y Value: {cell.values[1].toPrecision(2)} {meta.unit}</div>
+              </div>
+            )}
           />
         }
       </GridItem>
@@ -155,8 +174,8 @@ export default function Measurements() {
       {frameBuffer.pointData ?
         <GridItem area="c">
           <LinesChart
-            data1X={frameBuffer.pointData.point_means[0]}
-            data1Y={frameBuffer.pointData.point_means[1]}
+            data1X={frameBuffer.pointData.point_vals[0]}
+            data1Y={frameBuffer.pointData.point_vals[1]}
             data2X={[]}
             data2Y={[]}
             config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
@@ -180,8 +199,8 @@ export default function Measurements() {
       {frameBuffer.pointData ?
         <GridItem area="d">
           <Histogram
-            data1X={frameBuffer.pointData.point_means[0]}
-            data1Y={frameBuffer.pointData.point_means[1]}
+            data1X={frameBuffer.pointData.point_vals[0]}
+            data1Y={frameBuffer.pointData.point_vals[1]}
             data2X={[]}
             data2Y={[]}
             config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}

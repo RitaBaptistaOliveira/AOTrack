@@ -10,7 +10,7 @@ import Histogram from '@/components/charts/hist-chart'
 import { Card } from '@/components/ui/card'
 import { LineChart, BarChart3 } from "lucide-react"
 import { useAoSession } from '@/contexts/ao-session-context'
-import { fetchTile } from '@/api/pixel/fetchTile'
+import { fetchTile } from '@/api/fetchTile'
 
 
 export default function Pixels() {
@@ -86,12 +86,13 @@ export default function Pixels() {
 
   const handleFetchTile = useCallback(async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
     try {
-      const json = await fetchTile({
+      const json = await fetchTile<number[][]>({
         frameStart,
         frameEnd,
         indexStart,
         indexEnd,
-        wfsIndex: wfs
+        index: wfs,
+        page: "pixel"
       })
 
       return [json.tile]
@@ -121,6 +122,12 @@ export default function Pixels() {
             onCellSelect={handleCellSelect}
             onFrameChange={handleSetCurrentFrame}
             selectedCell={selectedCell}
+            formatHover={(cell) => (
+              <div className="text-xs">
+                <div>Col: {cell.col}, Row: {cell.row}</div>
+                <div>Value: {cell.values[0].toPrecision(2)} ADU</div>
+              </div>
+            )}
           />
         )}
       </GridItem>
@@ -136,6 +143,12 @@ export default function Pixels() {
             onPointSelect={handlePointSelect}
             onFetchTile={handleFetchTile}
             selectedPoint={selectedPoint}
+            formatHover={(cell) => (
+              <div className="text-xs">
+                <div>Index: {cell.index}</div>
+                <div>Value: {cell.values[0].toPrecision(2)} ADU</div>
+              </div>
+            )}
           />
         }
 
@@ -144,7 +157,7 @@ export default function Pixels() {
         <GridItem area="c">
           {frameBuffer.pointData &&
             <LinesChart
-              data1X={frameBuffer.pointData.point_means}
+              data1X={frameBuffer.pointData.point_vals}
               data1Y={[]}
               data2X={[]}
               data2Y={[]}
@@ -170,7 +183,7 @@ export default function Pixels() {
       {frameBuffer.pointData ?
         <GridItem area="d">
           <Histogram
-            data1X={frameBuffer.pointData.point_means}
+            data1X={frameBuffer.pointData.point_vals}
             data1Y={[]}
             data2X={[]}
             data2Y={[]}

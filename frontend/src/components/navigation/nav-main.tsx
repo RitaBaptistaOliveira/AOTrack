@@ -1,15 +1,18 @@
-"use client"
-
 import { NavLink } from "react-router-dom"
-import {
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-} from "@/components/ui/sidebar"
-
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem, } from "@/components/ui/sidebar"
 import { routes } from "@/routes"
+import type { ReactElement } from "react"
 
-export function NavMain() {
+/**
+ * Renders the main navigation menu for the dashboard sidebar.
+ *
+ * ```tsx
+ * <NavMain />
+ * ```
+ *
+ * @category Component
+ */
+export function NavMain(): ReactElement {
   return (
     <SidebarMenu>
       {routes.filter(route => route.navVisible).map((route) => (

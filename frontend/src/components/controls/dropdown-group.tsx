@@ -3,37 +3,43 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import type { ColorMap, IntervalType, ScaleType } from "@/types/visualization"
 import CustomSelect from "./custom-select"
+import type { ReactElement } from "react"
 
 /**
  * Props for the {@link SelectWithTooltip} component.
  *
- * @template T - A string literal type representing the value type of the select. In this case, it can be any of the types defined in `ColorMap`, `ScaleType`, or `IntervalType`.
+ * @typeParam T A string literal type representing the value type of the select. In this case, it can be any of the types defined in `ColorMap`, `ScaleType`, or `IntervalType`.
 */
 interface SelectProps<T extends string> {
   /** The currently selected value. */
   value: T
+
   /**
    * Callback triggered when a new value is selected.
-   * @param value - The newly selected value.
+   * @param value The newly selected value.
    */
   onChange: (value: T) => void
+
   /** Tooltip text describing the select's purpose. */
   tooltip: string
+
   /** The list of selectable options with labels and values. */
   options: { label: string; value: T }[]
+
   /** Optional CSS class for styling the select trigger. */
   className?: string
 }
 
 /**
- * A generic select component with an integrated tooltip.
+ * Renders a generic select component with an integrated tooltip.
  *
- * @template T - A string literal type representing the value type of the select. In this case, it can be any of the types defined in `ColorMap`, `ScaleType`, or `IntervalType`.
+ * @typeParam T A string literal type representing the value type of the select. In this case, it can be any of the types defined in `ColorMap`, `ScaleType`, or `IntervalType`.
  *
- * @param props - The props for configuring the select defined in {@link SelectProps}.
- * @returns A select dropdown wrapped in a tooltip.
+ * @param props The props for configuring the select defined in {@link SelectProps}.
+ * 
+ * @category Component
  */
-function SelectWithTooltip<T extends string>({ value, onChange, tooltip, options, className }: SelectProps<T>) {
+function SelectWithTooltip<T extends string>({ value, onChange, tooltip, options, className }: SelectProps<T>): ReactElement {
   return (
     <TooltipProvider>
       <Tooltip>
@@ -58,18 +64,16 @@ function SelectWithTooltip<T extends string>({ value, onChange, tooltip, options
 }
 
 /**
- * A group of dropdowns for controlling visualization parameters.
+ * Renders a group of dropdowns for controlling visualization parameters.
  *
  * This component allows the user to:
  * - Change the scale type
  * - Change the interval type
  * - Change the color map
  *
- * It uses {@link useChartInteraction} to read and update the current chart settings.
- *
- * @returns JSX element containing the dropdown group.
+ * @category Component
  */
-export default function DropdownGroup() {
+export default function DropdownGroup(): ReactElement {
   const { colorMap, setColorMap, intervalType, setIntervalType, scaleType, setScaleType } = useChartInteraction()
 
   /** Available scale type options. */

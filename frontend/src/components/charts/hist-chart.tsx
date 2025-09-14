@@ -1,6 +1,3 @@
-"use client"
-
-import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import * as d3 from "d3"
 import type { LineChartProps2D } from "@/types/line"
@@ -11,7 +8,7 @@ import { Input } from "../ui/input"
 import { themeColorMap } from "@/utils/color-themes"
 import { useChartInteraction } from "@/contexts/chart-interactions-context"
 
-const Histogram: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], data2X = [], data2Y = [], config1, config2 }) => {
+export default function Histogram({ data1X = [], data1Y = [], data2X = [], data2Y = [], config1, config2 }: LineChartProps2D){
   const { colorMap } = useChartInteraction()
   const containerRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -773,5 +770,3 @@ const Histogram: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], data2
     </div>
   )
 }
-
-export default Histogram

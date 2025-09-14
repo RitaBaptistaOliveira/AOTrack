@@ -1,8 +1,7 @@
-import { useChartInteraction } from "@/contexts/chart-interactions-context"
 import { useCallback, useEffect, useState } from "react"
-import { fetchDefaultSlopeStats } from "@/api/slope/fetchDefaultStats"
-import { fetchSlopePointStats } from "@/api/slope/fetchPointStats"
-import { fetchFrame } from "@/api/slope/fetchFrame"
+import { fetchDefaultStats } from "@/api/fetchDefaultStats"
+import { fetchPointStats } from "@/api/fetchPointStats"
+import { fetchFrame } from "@/api/fetchFrame"
 import type { DataPoint } from "@/types/visualization"
 
 type FrameMeta = {
@@ -14,6 +13,7 @@ type FrameMeta = {
   numRows?: number
   numCols?: number
   subapertureMask?: number[][]
+  unit?: string
 }
 
 type DefaultStats = {
@@ -26,7 +26,7 @@ type DefaultStats = {
 }
 
 type PointStats = {
-  point_means: [DataPoint[], DataPoint[]]
+  point_vals: [DataPoint[], DataPoint[]]
   stats: {
     min: [number, number]
     max: [number, number]
@@ -38,7 +38,6 @@ type PointStats = {
 }
 
 export function useSlopeFrameBuffer(wfsIndex: number) {
-  const { intervalType, scaleType } = useChartInteraction()
   const [buffer, setBuffer] = useState<Map<number, { x: number[][]; y: number[][] }>>(new Map())
   const [meta, setMeta] = useState<FrameMeta | undefined>()
   const [stats, setStats] = useState<DefaultStats | undefined>()
@@ -65,6 +64,7 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
         numCols: data.num_cols ?? undefined,
         numRows: data.num_rows ?? undefined,
         subapertureMask: data.subaperture_mask ?? undefined,
+        unit: data.unit ?? undefined
       })
     }
     fetchMeta()
@@ -73,10 +73,7 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const result = await fetchDefaultSlopeStats({
-          wfsIndex,
-        })
-
+        const result = await fetchDefaultStats<[number, number]>({ index: wfsIndex, page: "slope" })
         setStats({
           min: result.min,
           max: result.max,
@@ -96,9 +93,10 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
   const fetchPointData = useCallback(
     async (index: number) => {
       try {
-        const res = await fetchSlopePointStats({
-          wfsIndex,
-          index
+        const res = await fetchPointStats<[DataPoint[], DataPoint[]], [number, number]>({
+          index: wfsIndex,
+          point_index: index,
+          page: "slope"
         })
         setPointData(res)
       } catch (err) {
@@ -122,7 +120,7 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
 
       if (!buffer.has(frameIndex)) {
         try {
-          const json = await fetchFrame({ frameIndex, wfsIndex, scaleType, intervalType })
+          const json = await fetchFrame<{ frameX: number[][]; frameY: number[][] }>({ frameIndex, index: wfsIndex, page: "slope" })
 
           newBuffer.set(frameIndex, { x: json.frameX, y: json.frameY })
         } catch (err) {

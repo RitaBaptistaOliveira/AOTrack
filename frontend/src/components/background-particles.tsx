@@ -1,9 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 import Particles, { initParticlesEngine } from "@tsparticles/react";
 import { loadSlim } from "@tsparticles/slim";
 import {type ISourceOptions } from "@tsparticles/engine";
 
-export function BackgroundParticles() {
+/**
+ * Renders a particle background to simulate stars.
+ *
+ * ```tsx
+ * <BackgroundParticles />
+ * ```
+ * 
+ * This component initializes the particle engine and renders particles with randomized size and opacity.
+ *
+ * @category Component
+ */
+export function BackgroundParticles(): ReactElement | null {
     const [init, setInit] = useState(false);
 
     useEffect(() => {

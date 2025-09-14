@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
-import { fetchDefaultStats } from "@/api/pixel/fetchDefaultStats"
-import { fetchPointStats } from "@/api/pixel/fetchPointStats"
-import { fetchFrame } from "@/api/pixel/fetchFrame"
+import { fetchDefaultStats } from "@/api/fetchDefaultStats"
+import { fetchPointStats } from "@/api/fetchPointStats"
+import { fetchFrame } from "@/api/fetchFrame"
 import type { DataPoint } from "@/types/visualization"
 
 type FrameMeta = {
@@ -22,7 +22,7 @@ type DefaultStats = {
 }
 
 type PointStats = {
-    point_means: DataPoint[]
+    point_vals: DataPoint[]
     stats: {
         min: number
         max: number
@@ -68,9 +68,7 @@ export function useFrameBuffer(wfsIndex: number) {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const result = await fetchDefaultStats({
-                    wfsIndex
-                })
+                const result = await fetchDefaultStats<number>({index: wfsIndex, page: "pixel"})
 
                 setStats({
                     min: result.min,
@@ -90,10 +88,11 @@ export function useFrameBuffer(wfsIndex: number) {
     const fetchPointData = useCallback(
         async (col: number, row: number) => {
             try {
-                const res = await fetchPointStats({
-                    wfsIndex,
-                    col,
-                    row
+                const res = await fetchPointStats<DataPoint[], number>({
+                    index: wfsIndex,
+                    point_col: col,
+                    point_row: row,
+                    page: "pixel"
                 })
                 setPointData(res)
             } catch (err) {
@@ -106,7 +105,7 @@ export function useFrameBuffer(wfsIndex: number) {
 
     const fetchSingleFrameImmediate = useCallback(async (frameIndex: number) => {
         try {
-            const json = await fetchFrame({ frameIndex, wfsIndex })
+            const json = await fetchFrame<{ frame: number[][] }>({ frameIndex, index: wfsIndex, page: "pixel" })
             setBuffer(prev => {
                 const newBuffer = new Map(prev)
                 newBuffer.set(frameIndex, json.frame)
@@ -122,7 +121,7 @@ export function useFrameBuffer(wfsIndex: number) {
 
     const fetchMultipleFrames = useCallback(async (frameIndices: number[], min: number, max: number) => {
         const results = await Promise.allSettled(
-            frameIndices.map(i => fetchFrame({ frameIndex: i, wfsIndex }))
+            frameIndices.map(i => fetchFrame<{ frame: number[][] }>({ frameIndex: i, index: wfsIndex, page: "pixel" }))
         )
 
         setBuffer(prev => {

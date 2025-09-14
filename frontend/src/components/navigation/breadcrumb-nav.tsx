@@ -1,10 +1,22 @@
 import { useLocation, Link } from "react-router-dom"
-import { useState, useEffect } from "react"
+import { useState, useEffect, type ReactElement } from "react"
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb"
 import { useAoSession } from "@/contexts/ao-session-context"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-export function BreadcrumbNav() {
+/**
+ * Renders the breadcrumb navigation for the dashboard.
+ *
+ * ```tsx
+ * <BreadcrumbNav />
+ * ```
+ * 
+ * Dynamically generates the breadcrumb path based on the current URL.
+ * Provides a dropdown for sections that have multiple WFS or Loops, allowing the user to switch between them.
+ *
+ * @category Component
+ */
+export function BreadcrumbNav(): ReactElement | null {
   const { metadataSummary, setWfs, setWfc } = useAoSession()
   const location = useLocation()
   const pathnames = location.pathname.split("/").filter(Boolean)
@@ -13,7 +25,14 @@ export function BreadcrumbNav() {
   const [selected, setSelected] = useState<string>("")
   const [items, setItems] = useState<string[]>([])
 
-
+  /**
+   * Updates the list of items for the dropdown and sets the default selected value
+   * whenever the current section or metadata summary changes.
+   *
+   * - For "pixels" or "measurements", populates wfs.
+   * - For "commands", populates wfc.
+   * - For "overview", clears items.
+   */
   useEffect(() => {
     if (!metadataSummary) return
 
@@ -38,6 +57,14 @@ export function BreadcrumbNav() {
     }
   }, [section, metadataSummary])
 
+  /**
+   * Handles selection changes from the dropdown.
+   *
+   * Updates the currently selected value in state and informs the AoSession
+   * context which WFS or WFC index is now active.
+   *
+   * @param {string} value - The newly selected item value.
+   */
   function setSelectedValue(value: string) {
     const index = items.indexOf(value)
     if (index === -1) return
@@ -71,7 +98,7 @@ export function BreadcrumbNav() {
         </BreadcrumbItem>
         {items.length > 0 &&
           <>
-            <BreadcrumbSeparator className="text-foreground"/>
+            <BreadcrumbSeparator className="text-foreground" />
 
             <BreadcrumbItem>
 

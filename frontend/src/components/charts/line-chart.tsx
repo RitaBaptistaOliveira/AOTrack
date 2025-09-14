@@ -1,6 +1,3 @@
-"use client"
-
-import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import * as d3 from "d3"
 import type { DataPoint, LineChartProps2D } from "@/types/line"
@@ -16,7 +13,7 @@ interface Statistics {
     avg: number
 }
 
-const LinesChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], data2X = [], data2Y = [], config1, config2 }) => {
+export default function LinesChart({data1X = [], data1Y = [], data2X = [], data2Y = [], config1, config2}: LineChartProps2D) {
     const { colorMap } = useChartInteraction()
     const containerRef = useRef<HTMLDivElement>(null)
     const svgRef = useRef<SVGSVGElement>(null)
@@ -497,5 +494,3 @@ const LinesChart: React.FC<LineChartProps2D> = ({ data1X = [], data1Y = [], data
         </div >
     )
 }
-
-export default LinesChart
