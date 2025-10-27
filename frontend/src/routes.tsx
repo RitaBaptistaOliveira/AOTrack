@@ -2,56 +2,96 @@ import {
   TableOfContents,
   Blocks,
   DraftingCompass,
-  Command
+  Command,
+  type LucideIcon
 } from "lucide-react"
-import Overview from "./pages/Overview"
-import Pixels from "./pages/Pixels"
-import Measurements from "./pages/Measurements"
-import Commands from "./pages/Commands"
-import Welcome from "./pages/Welcome"
+import { lazy, Suspense, type JSX, type ReactElement } from "react"
 
-export const routes = [
+export const ROUTE_PATHS = {
+  welcome: "/welcome",
+  overview: "/dashboard/overview",
+  pixels: "/dashboard/pixels",
+  measurements: "/dashboard/measurements",
+  commands: "/dashboard/commands",
+}
+
+const Welcome = lazy(() => import("@/pages/Welcome"))
+const Overview = lazy(() => import("@/pages/Overview"))
+const Pixels = lazy(() => import("@/pages/Pixels"))
+const Measurements = lazy(() => import("@/pages/Measurements"))
+const Commands = lazy(() => import("@/pages/Commands"))
+
+const withSuspense = (Component: React.LazyExoticComponent<() => JSX.Element>): ReactElement => (
+  <Suspense
+    fallback={
+      <div className="flex items-center justify-center h-full p-8 text-gray-500 animate-pulse">
+        Loading...
+      </div>
+    }
+  >
+    <Component />
+  </Suspense>
+)
+
+export interface AppRoute {
+  path: string
+  title: string
+  description: string
+  icon: LucideIcon
+  element: ReactElement
+  navVisible: boolean
+}
+
+export const coreRoutes: AppRoute[] = [
   {
-    path: "welcome",
+    path: ROUTE_PATHS.welcome,
     title: "Welcome",
+    description: "Welcome Page",
     icon: TableOfContents,
-    element: Welcome,
+    element: withSuspense(Welcome),
     navVisible: false,
-  },
+  }
+]
+
+export const overviewRoutes: AppRoute[] = [
   {
-    path: "overview",
+    path: ROUTE_PATHS.overview,
     title: "Overview",
+    description: "Session Overview",
     icon: TableOfContents,
-    element: Overview,
+    element: withSuspense(Overview),
     navVisible: true,
   },
+  // Add more core routes here if needed (like Settings, Profile, etc.)
+]
+
+export const explorationRoutes: AppRoute[] = [
   {
-    path: "pixels",
+    path: ROUTE_PATHS.pixels,
     title: "Pixels",
+    description: "Inspect raw pixel-level data from the wavefront sensors or science cameras, including intensity maps and temporal evolution.",
     icon: Blocks,
-    element: Pixels,
+    element: withSuspense(Pixels),
     navVisible: true,
   },
   {
-    path: "measurements",
-    title: "Measurements",
+    path: ROUTE_PATHS.measurements,
+    title: "Measurements", 
+    description: "Analyze processed measurements derived from sensor data, such as slopes, centroids, or reconstructed wavefront statistics.",
     icon: DraftingCompass,
-    element: Measurements,
+    element: withSuspense(Measurements),
     navVisible: true,
   },
   {
-    path: "commands",
+    path: ROUTE_PATHS.commands,
     title: "Commands",
+    description: "Visualize and assess the commands sent to deformable mirrors or other actuators, including amplitude, frequency, and stability.",
     icon: Command,
-    element: Commands,
+    element: withSuspense(Commands),
     navVisible: true,
   },
 ]
 
-export const ROUTE_PATHS = {
-  welcome: "/welcome",
-  overview: "dashboard/overview",
-  pixels: "dashboard/pixels",
-  measurements: "dashboard/measurements",
-  commands: "dashboard/commands",
-};
+export const routes: AppRoute[] = [...coreRoutes, ...overviewRoutes, ...explorationRoutes]
+export const navRoutes = routes.filter((r) => r.navVisible)
+export const dashboardRoutes = routes.filter((r) => r.path.startsWith("/dashboard"))

@@ -43,23 +43,23 @@ function SelectWithTooltip<T extends string>({ value, onChange, tooltip, options
   return (
     <TooltipProvider>
       <Tooltip>
-        <TooltipTrigger asChild>
-          <Select value={value} onValueChange={(val) => onChange(val as T)}>
+        <Select value={value} onValueChange={(val) => onChange(val as T)}>
+          <TooltipTrigger asChild>
             <SelectTrigger className={className}>
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              {options.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </TooltipTrigger>
-        <TooltipContent>{tooltip}</TooltipContent>
+          </TooltipTrigger>
+          <SelectContent>
+            {options.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <TooltipContent className="shadow-xl border-1 border-300-gray">{tooltip}</TooltipContent>
       </Tooltip>
-    </TooltipProvider>
+    </TooltipProvider >
   )
 }
 
@@ -100,7 +100,7 @@ export default function DropdownGroup(): ReactElement {
   ]
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1">
       <SelectWithTooltip
         value={scaleType}
         onChange={setScaleType}
@@ -111,10 +111,8 @@ export default function DropdownGroup(): ReactElement {
 
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger asChild>
             <CustomSelect value={intervalType} onValueChange={(value) => { setIntervalType(value as IntervalType) }} />
-          </TooltipTrigger>
-          <TooltipContent>Change the interval</TooltipContent>
+          <TooltipContent className="shadow-xl border-1 border-300-gray">Change the interval</TooltipContent>
         </Tooltip>
       </TooltipProvider>
 

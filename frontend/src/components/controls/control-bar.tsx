@@ -80,7 +80,7 @@ function ControlButton({ icon: Icon, tooltip, active, onClick }: ControlItem): R
           <Icon />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{tooltip}</TooltipContent>
+      <TooltipContent className="shadow-xl border-1 border-300-gray">{tooltip}</TooltipContent>
     </Tooltip>
   )
 }
@@ -143,11 +143,11 @@ export default function ControlBar({ mode, onModeChange, showTooltips, showLegen
 
   return (
     <TooltipProvider>
-      <div className="flex items-center gap-1 py-2 bg-white">
+      <div className="flex items-center py-1 gap-1">
         {groups.map((group, groupIndex) => (
-          <div key={groupIndex} className="flex items-center gap-1">
+          <div key={groupIndex} className="flex h-full items-center gap-1">
             {group.map((item, index) => (<ControlButton key={index} {...item} />))}
-            {groupIndex < groups.length - 1 && <Separator orientation="vertical" className="h-6" />}
+            {groupIndex < groups.length - 1 && <Separator orientation="vertical" />}
           </div>
         ))}
       </div>

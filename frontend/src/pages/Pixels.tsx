@@ -2,27 +2,28 @@ import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dash
 import { useCallback, useEffect, useState } from 'react'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useFrameBuffer } from "@/hooks/use-frame-buffer"
-import Heatmap from '@/components/charts/heatmap-chart'
-import TileHeatmap from '@/components/charts/tile-heatmap-chart'
-import LinesChart from '@/components/charts/line-chart'
+import FrameView from '@/components/charts/frame-view/FrameView'
+import TimelineView from '@/components/charts/timeline-view/TimelineView'
+import LineChart from '@/components/charts/line-chart/LineChart'
 import StatTable from '@/components/charts/stat-table'
-import Histogram from '@/components/charts/hist-chart'
+import Histogram from '@/components/charts/histogram/Histogram'
 import { Card } from '@/components/ui/card'
-import { LineChart, BarChart3 } from "lucide-react"
+import { LineChart as LN, BarChart3 } from "lucide-react"
 import { useAoSession } from '@/contexts/ao-session-context'
 import { fetchTile } from '@/api/fetchTile'
-
+import type { Dataset, MultiDataset } from '@/components/charts/common/utils/types'
 
 export default function Pixels() {
 
   const { wfs } = useAoSession()
+  const [datasets, setDatasets] = useState<MultiDataset>([])
   const frameBuffer = useFrameBuffer(wfs)
   const [currentFrame, setCurrentFrame] = useState(0)
   const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number } | null>(null)
   const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number } | null>(null)
   const currentFrameData = frameBuffer.getFrame(currentFrame)
   const { scaleType, intervalType } = useChartInteraction()
-  const [displayFrameData, setDisplayFrameData] = useState<number[][] | null>(null);
+  const [displayFrameData, setDisplayFrameData] = useState<number[][] | null>(null)
 
   useEffect(() => {
     if (currentFrameData) {
@@ -68,6 +69,12 @@ export default function Pixels() {
   }, [meta])
 
   const handlePointSelect = useCallback(async (selected: { frame: number, index: number } | null) => {
+    const isDiffFrameOnly = selected && selectedPoint && selected.frame !== selectedPoint.frame && selected.index === selectedPoint.index
+    if (isDiffFrameOnly) {
+      handleSetCurrentFrame(selected.frame)
+      return
+    }
+
     setSelectedPoint(selected)
     if (selected && meta) {
       const numRows = meta.numRows
@@ -82,7 +89,7 @@ export default function Pixels() {
       setSelectedCell(null)
       frameBuffer.setPointData(undefined)
     }
-  }, [meta])
+  }, [meta, selectedPoint])
 
   const handleFetchTile = useCallback(async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
     try {
@@ -104,6 +111,22 @@ export default function Pixels() {
   }, [])
 
   useEffect(() => {
+    if (!frameBuffer.pointData) {
+      setDatasets([])
+      return
+    }
+    const newDataset = {
+      pointId: "Point1",
+      dimId: "X",
+      data: frameBuffer.pointData.point_vals,
+      color: "#10b981"
+    } as Dataset
+
+    setDatasets([newDataset])
+
+  }, [frameBuffer.pointData])
+
+  useEffect(() => {
     frameBuffer.preloadAround(currentFrame, 2)
   }, [currentFrame, scaleType, intervalType])
 
@@ -112,8 +135,8 @@ export default function Pixels() {
 
       <GridItem area="a">
         {displayFrameData && meta && (
-          <Heatmap
-            data={displayFrameData ? [displayFrameData] : []}
+          <FrameView
+            data={[displayFrameData]}
             numRows={meta.numRows}
             numCols={meta.numCols}
             numFrames={meta.numFrames}
@@ -123,7 +146,7 @@ export default function Pixels() {
             onFrameChange={handleSetCurrentFrame}
             selectedCell={selectedCell}
             formatHover={(cell) => (
-              <div className="text-xs">
+              <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none text-xs">
                 <div>Col: {cell.col}, Row: {cell.row}</div>
                 <div>Value: {cell.values[0].toPrecision(2)} ADU</div>
               </div>
@@ -134,7 +157,7 @@ export default function Pixels() {
 
       <GridItem area="b">
         {meta &&
-          <TileHeatmap
+          <TimelineView
             numFrames={meta.numFrames}
             numIndexes={meta.numCols * meta.numRows}
             dim={1}
@@ -142,9 +165,10 @@ export default function Pixels() {
             maxValue={meta.overallMax}
             onPointSelect={handlePointSelect}
             onFetchTile={handleFetchTile}
+            onFrameChange={handleSetCurrentFrame}
             selectedPoint={selectedPoint}
             formatHover={(cell) => (
-              <div className="text-xs">
+              <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none text-xs">
                 <div>Index: {cell.index}</div>
                 <div>Value: {cell.values[0].toPrecision(2)} ADU</div>
               </div>
@@ -153,24 +177,17 @@ export default function Pixels() {
         }
 
       </GridItem>
-      {frameBuffer.pointData ?
+      {datasets.length > 0 ?
         <GridItem area="c">
           {frameBuffer.pointData &&
-            <LinesChart
-              data1X={frameBuffer.pointData.point_vals}
-              data1Y={[]}
-              data2X={[]}
-              data2Y={[]}
-              config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
-              config2={undefined}
-            />
+            <LineChart datasets={datasets} labels={{ title: "Pixel Intensities by Frame", x: "Frame", y: "Intensity (ADU)" }} />
           }
         </GridItem>
         :
         <GridItem area="c" className='flex items-center justify-center'>
           <Card className="p-6 text-center w-95 h-9/11">
             <div className="flex justify-center mb-4">
-              <LineChart size={48} />
+              <LN size={48} />
             </div>
             <h3 className="text-lg font-semibold mb-2">Pixel Intensities by Frame</h3>
             <p className="text-foreground mb-4">
@@ -180,16 +197,9 @@ export default function Pixels() {
         </GridItem>
       }
 
-      {frameBuffer.pointData ?
+      {datasets.length > 0 ?
         <GridItem area="d">
-          <Histogram
-            data1X={frameBuffer.pointData.point_vals}
-            data1Y={[]}
-            data2X={[]}
-            data2Y={[]}
-            config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
-            config2={undefined}
-          />
+          <Histogram datasets={datasets} labels={{ title: "Intensity Distribution", x: "Intensity (ADU)" }} />
         </GridItem>
         :
         <GridItem area="d" className='flex items-center justify-center'>
@@ -197,7 +207,7 @@ export default function Pixels() {
             <div className="flex justify-center mb-4">
               <BarChart3 size={48} />
             </div>
-            <h3 className="text-lg font-semibold mb-2">Intensities Distribution</h3>
+            <h3 className="text-lg font-semibold mb-2">Intensity Distribution</h3>
             <p className="text-foreground mb-4">
               Click a <span className="font-semibold">Point</span> to show the histogram
             </p>

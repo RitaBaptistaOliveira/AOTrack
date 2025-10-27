@@ -2,24 +2,33 @@ import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dash
 import { useCallback, useEffect, useState } from 'react'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useSlopeFrameBuffer } from "@/hooks/use-slope-buffer"
-import Heatmap from '@/components/charts/heatmap-chart'
-import TileHeatmap from '@/components/charts/tile-heatmap-chart'
-import LinesChart from '@/components/charts/line-chart'
+import FrameView from '@/components/charts/frame-view/FrameView'
 import DualStatTable from '@/components/charts/stat-table'
-import Histogram from '@/components/charts/hist-chart'
 import { Card } from '@/components/ui/card'
-import { LineChart, BarChart3 } from "lucide-react"
+import { LineChart as LN, BarChart3 } from "lucide-react"
 import { useAoSession } from '@/contexts/ao-session-context'
 import { fetchTile } from '@/api/fetchTile'
+import TimelineView from '@/components/charts/timeline-view/TimelineView'
+import LineChart from '@/components/charts/line-chart/LineChart'
+import type { Dataset, MultiDataset } from '@/components/charts/common/utils/types'
+import Histogram from '@/components/charts/histogram/Histogram'
 
 export default function Measurements() {
   const { wfs } = useAoSession()
+  const [datasets, setDatasets] = useState<MultiDataset>([])
   const frameBuffer = useSlopeFrameBuffer(wfs)
   const [currentFrame, setCurrentFrame] = useState(0)
   const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number } | null>(null)
   const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number } | null>(null)
   const currentFrameData = frameBuffer.getFrame(currentFrame)
   const { scaleType, intervalType } = useChartInteraction()
+  const [displayFrameData, setDisplayFrameData] = useState<number[][][] | null>(null)
+
+  useEffect(() => {
+    if (currentFrameData) {
+      setDisplayFrameData([currentFrameData.x, currentFrameData.y]);
+    }
+  }, [currentFrameData])
 
   const [meta, setMeta] = useState<{
     numFrames: number
@@ -33,6 +42,7 @@ export default function Measurements() {
     unit?: string
   } | null>(null)
 
+
   useEffect(() => {
     if (frameBuffer.meta) {
       if (frameBuffer.meta.unit === undefined) {
@@ -41,6 +51,13 @@ export default function Measurements() {
       setMeta(frameBuffer.meta)
     }
   }, [frameBuffer.meta])
+
+  const handleSetCurrentFrame = useCallback((frame: number) => {
+    setCurrentFrame(frame)
+    setSelectedCell(prev => prev ? { ...prev, frame } : null)
+    setSelectedPoint(prev => prev ? { ...prev, frame } : null)
+  }, [])
+
 
   const handleCellSelect = useCallback(async (selected: { frame: number, col: number; row: number } | null) => {
     setSelectedCell(selected)
@@ -66,6 +83,12 @@ export default function Measurements() {
   }, [meta])
 
   const handlePointSelect = useCallback(async (selected: { frame: number, index: number } | null) => {
+    const isDiffFrameOnly = selected && selectedPoint && selected.frame !== selectedPoint.frame && selected.index === selectedPoint.index
+    if (isDiffFrameOnly) {
+      handleSetCurrentFrame(selected.frame)
+      return
+    }
+
     setSelectedPoint(selected)
     if (selected && meta) {
       const mask = meta.subapertureMask
@@ -87,13 +110,8 @@ export default function Measurements() {
       setSelectedCell(null)
       frameBuffer.setPointData(undefined)
     }
-  }, [meta])
+  }, [meta, selectedPoint])
 
-  const handleFrameChange = useCallback((frame: number) => {
-    setCurrentFrame(frame)
-    setSelectedCell(prev => prev ? { ...prev, frame } : null)
-    setSelectedPoint(prev => prev ? { ...prev, frame } : null)
-  }, [])
 
   const handleFetchTile = useCallback(async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
     try {
@@ -115,6 +133,28 @@ export default function Measurements() {
   }, [])
 
   useEffect(() => {
+    if (!frameBuffer.pointData) {
+      setDatasets([])
+      return
+    }
+    let newDatasets = [] as MultiDataset
+    if (meta) {
+      for (let d = 0; d < meta.dim; d++) {
+        console.log(d)
+        const newDataset = {
+          pointId: `Point${d}`,
+          dimId: "",
+          data: frameBuffer.pointData.point_vals[d],
+          color: "#10b981"
+        } as Dataset
+        newDatasets.push(newDataset)
+      }
+    }
+    setDatasets(newDatasets)
+
+  }, [frameBuffer.pointData])
+
+  useEffect(() => {
     frameBuffer.preloadAround(currentFrame, 2)
   }, [currentFrame, scaleType, intervalType])
 
@@ -122,20 +162,19 @@ export default function Measurements() {
     <DashboardGrid variant="default">
 
       <GridItem area="a">
-        {(meta?.numCols && meta.numRows && meta.subapertureMask)
-          ?
-          <Heatmap
-            data={currentFrameData ? [currentFrameData.x, currentFrameData.y] : [[[]], [[]]]}
+        { displayFrameData && meta && (meta.numCols && meta.numRows && meta.subapertureMask) ?
+          <FrameView
+            data={displayFrameData}
             numRows={meta.numRows}
             numCols={meta.numCols}
             numFrames={meta.numFrames}
             minValue={meta.overallMin}
             maxValue={meta.overallMax}
             onCellSelect={handleCellSelect}
-            onFrameChange={handleFrameChange}
+            onFrameChange={handleSetCurrentFrame}
             selectedCell={selectedCell}
             formatHover={(cell) => (
-              <div className="text-xs">
+              <div className="absolute top-1 left-1 bg-black text-white px-2 py-1 rounded pointer-events-none text-xs">
                 <div>Col: {cell.col}, Row: {cell.row}</div>
                 <div>X Value: {cell.values[0].toPrecision(2)} {meta.unit}</div>
                 <div>Y Value: {cell.values[1].toPrecision(2)} {meta.unit}</div>
@@ -151,7 +190,7 @@ export default function Measurements() {
 
       <GridItem area="b">
         {meta &&
-          <TileHeatmap
+          <TimelineView
             numFrames={meta.numFrames}
             numIndexes={meta.numIndices}
             dim={meta.dim}
@@ -159,9 +198,10 @@ export default function Measurements() {
             maxValue={meta.overallMax}
             onPointSelect={handlePointSelect}
             onFetchTile={handleFetchTile}
+            onFrameChange={handleSetCurrentFrame}
             selectedPoint={selectedPoint}
             formatHover={(cell) => (
-              <div className="text-xs">
+              <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none text-xs">
                 <div>Index: {cell.index}</div>
                 <div>X Value: {cell.values[0].toPrecision(2)} {meta.unit}</div>
                 <div>Y Value: {cell.values[1].toPrecision(2)} {meta.unit}</div>
@@ -171,22 +211,15 @@ export default function Measurements() {
         }
       </GridItem>
 
-      {frameBuffer.pointData ?
+      {datasets.length > 0 ?
         <GridItem area="c">
-          <LinesChart
-            data1X={frameBuffer.pointData.point_vals[0]}
-            data1Y={frameBuffer.pointData.point_vals[1]}
-            data2X={[]}
-            data2Y={[]}
-            config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
-            config2={undefined}
-          />
+          <LineChart datasets={datasets} labels={{ title: "Measurements by Frame", x: "Frame", y: meta?.unit }} />
         </GridItem>
         :
         <GridItem area="c" className='flex items-center justify-center'>
           <Card className="p-6 text-center w-95 h-9/11">
             <div className="flex justify-center mb-4">
-              <LineChart size={48} />
+              <LN size={48} />
             </div>
             <h3 className="text-lg font-semibold mb-2">Measurements by Frame</h3>
             <p className="text-foreground mb-4">
@@ -196,16 +229,9 @@ export default function Measurements() {
         </GridItem>
       }
 
-      {frameBuffer.pointData ?
+      {datasets.length > 0 ?
         <GridItem area="d">
-          <Histogram
-            data1X={frameBuffer.pointData.point_vals[0]}
-            data1Y={frameBuffer.pointData.point_vals[1]}
-            data2X={[]}
-            data2Y={[]}
-            config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
-            config2={undefined}
-          />
+          <Histogram datasets={datasets} labels={{ title: "Measurements Distribution", x: meta?.unit }} />
         </GridItem>
         :
         <GridItem area="d" className='flex items-center justify-center'>

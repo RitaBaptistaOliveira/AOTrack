@@ -37,30 +37,51 @@ type StatSummary<T> = {
  * @param {number} [params.point_index] The point index (required for command/slope).
  * @param {number} [params.point_col] The point column (required for pixel).
  * @param {number} [params.point_row] The point row (required for pixel).
+ * @param {number} [params.frame_index] The point row (required for pixel).
  * @param {"command" | "pixel" | "slope"} params.page The API route to fetch from.
  *
  * @returns {Promise<{ point_vals: V; stats: StatSummary<S> }>} The requested point statistics.
  */
 export async function fetchPointStats<
-  V extends DataPoint[] | [DataPoint[], DataPoint[]],
+  V extends DataPoint[] | [DataPoint[], DataPoint[]] | number[][],
   S extends number | [number, number]
->({ index, point_index, point_col, point_row, page }: { index: number, point_index?: number, point_col?: number, point_row?: number, page: "command" | "pixel" | "slope" }):
-  Promise<{ point_vals: V; stats: StatSummary<S> }> {
+>({ index, point_index, point_col, point_row, page, frameIndex }: { index: number, point_index?: number, point_col?: number, point_row?: number, page: "command" | "pixel" | "slope", frameIndex?: number }):
+  Promise<{ point_vals: V; stats: StatSummary<S> | undefined}> {
   const formData = new FormData()
   formData.append("index", index.toString())
-
-  if (page === "command" || page === "slope") {
-    if (point_index === undefined) throw new Error("point_index is required for command/slope")
-    formData.append("point_index", point_index.toString())
-  } else if (page === "pixel") {
-    if (point_col === undefined || point_row === undefined) throw new Error("point_col and point_row are required for pixel")
-    formData.append("point_col", point_col.toString())
-    formData.append("point_row", point_row.toString())
+  let route = "get-point-stats"
+  switch (page) {
+    case "command":
+      if (point_index !== undefined) {
+        formData.append("point_index", point_index.toString())
+        if (frameIndex !== undefined) {
+          formData.append("frame_index", frameIndex.toString())
+          route = "get-actuator-contribution"
+        } else route = "get-actuator-timeseries"
+      } else if (point_col !== undefined && point_row !== undefined) {
+        formData.append("point_col", point_col.toString())
+        formData.append("point_row", point_row.toString())
+        if (frameIndex !== undefined) {
+          formData.append("frame_index", frameIndex.toString())
+          route = "get-point-contributions"
+        } else route = "get-point-timeseries"
+      }
+      else throw new Error("one is required for command: point_col and point_row or point_index")
+      break
+    case "slope":
+      if (point_index === undefined) throw new Error("point_index is required for slope")
+      formData.append("point_index", point_index.toString())
+      break
+    case "pixel":
+      if (point_col === undefined || point_row === undefined) throw new Error("point_col and point_row are required for pixel")
+      formData.append("point_col", point_col.toString())
+      formData.append("point_row", point_row.toString())
+      break
+    default:
+      throw new Error(`Invalid page type: ${page}`)
   }
 
-  console.log("formData:", Object.fromEntries(formData.entries()))
-
-  const res = await fetch(`http://localhost:8000/${page}/get-point-stats`, {
+  const res = await fetch(`http://localhost:8000/${page}/${route}`, {
     method: "POST",
     body: formData,
     credentials: "include",
@@ -69,6 +90,6 @@ export async function fetchPointStats<
   if (!res.ok) {
     throw new Error(`Point stats fetch failed: ${res.statusText}`)
   }
-  
+
   return await res.json()
 }

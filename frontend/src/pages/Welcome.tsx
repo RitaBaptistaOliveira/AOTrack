@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input"
 import { UploadCloud, ArrowDown } from "lucide-react"
 import { ROUTE_PATHS } from "../routes"
 import { Button } from "@/components/ui/button"
-import { useNavigate } from "react-router-dom"
+import { NavLink, useNavigate } from "react-router-dom"
 import { BackgroundParticles } from "@/components/background-particles"
 import { useAoHelper } from "@/hooks/use-ao-helper"
 import { useAoSession } from "@/contexts/ao-session-context"
@@ -240,9 +240,11 @@ export default function Welcome() {
 
                                                 <div className="grid w-full grid-cols-2 relative gap-4">
                                                     {/* Buttons fill width equally */}
-                                                    <Button onClick={() => navigate(ROUTE_PATHS.overview)} className="flex-1 text-accent-foreground bg-accent hover:bg-accent/70">
-                                                        Proceed
-                                                    </Button>
+                                                    <NavLink to={ROUTE_PATHS.overview} className="flex-1">
+                                                        <Button onClick={() => navigate(ROUTE_PATHS.overview)} className="flex-1 text-accent-foreground bg-accent hover:bg-accent/70">
+                                                            Proceed
+                                                        </Button>
+                                                    </NavLink>
                                                     <label htmlFor="file-upload" className="flex-1">
                                                         <Button
                                                             variant="outline"

@@ -9,7 +9,7 @@ import { BreadcrumbNav } from "@/components/navigation/breadcrumb-nav"
 
 export default function Layout() {
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <AppSidebar />
       <SidebarInset className="flex flex-col h-screen overflow-hidden">
         <header className="bg-card flex shrink-0 items-center shadow-sm justify-between px-4 py-1 transition-[width,height] ease-linear">

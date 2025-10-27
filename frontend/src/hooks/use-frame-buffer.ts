@@ -39,7 +39,6 @@ export function useFrameBuffer(wfsIndex: number) {
     const [buffer, setBuffer] = useState<Map<number, number[][]>>(new Map())
     const [pointData, setPointData] = useState<PointStats | undefined>()
 
-    // Call fetchMeta once
     useEffect(() => {
         const fetchMeta = async () => {
             const form = new FormData()

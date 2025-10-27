@@ -1,6 +1,7 @@
 .dashboardGrid {
   display: grid;
   height: 100%;
+  width: 100%;
 
   grid-template-columns: 1fr;
   grid-template-areas:
@@ -27,7 +28,7 @@
     grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       "a b"
-      "c d";
+      "c c";
   }
 
   .dashboardGrid.defaultGrid {

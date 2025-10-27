@@ -35,14 +35,30 @@ type PointStats = {
         std: number
         variance: number
     }
+    contributions: DataPoint[]
 }
+
+type ActuatorStats = {
+    point_vals: DataPoint[]
+    stats: {
+        min: number
+        max: number
+        mean: number
+        median: number
+        std: number
+        variance: number
+    }
+    contributions: number[][]
+}
+
 
 export function useCommandBuffer(loopIndex: number) {
     const { intervalType, scaleType } = useChartInteraction()
     const [meta, setMeta] = useState<FrameMeta | undefined>()
     const [stats, setStats] = useState<DefaultStats | undefined>()
     const [buffer, setBuffer] = useState<Map<number, number[][]>>(new Map())
-    const [pointData, setPointData] = useState<PointStats | undefined>()
+    const [pupilData, setPupilData] = useState<PointStats | undefined>()
+    const [actuatorData, setActuatorData] = useState<ActuatorStats | undefined>()
 
     useEffect(() => {
         const fetchMeta = async () => {
@@ -75,7 +91,7 @@ export function useCommandBuffer(loopIndex: number) {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const result = await fetchDefaultStats<number>({index: loopIndex, page: "command"})
+                const result = await fetchDefaultStats<number>({ index: loopIndex, page: "command" })
                 setStats({
                     min: result.min,
                     max: result.max,
@@ -92,22 +108,92 @@ export function useCommandBuffer(loopIndex: number) {
     }, [loopIndex, intervalType, scaleType])
 
     const fetchPointData = useCallback(
-        async (index: number) => {
+        async (col: number, row: number, frame: number) => {
             try {
                 const res = await fetchPointStats<DataPoint[], number>({
                     index: loopIndex,
-                    point_index: index,
+                    point_col: col,
+                    point_row: row,
                     page: "command"
                 })
-                setPointData(res)
+
+                const contribs = await fetchPointStats<DataPoint[], number>({
+                    index: loopIndex,
+                    point_col: col,
+                    point_row: row,
+                    frameIndex: frame,
+                    page: "command"
+                })
+                setPupilData({ point_vals: res.point_vals, stats: res.stats!, contributions: contribs.point_vals })
             } catch (err) {
                 console.error("Failed to fetch point data:", err)
-                setPointData(undefined)
+                setPupilData(undefined)
             }
         },
         [loopIndex]
     )
 
+    const fetchPointContributions = useCallback(
+        async (col: number, row: number, frame: number) => {
+            try {
+                const res = await fetchPointStats<DataPoint[], number>({
+                    index: loopIndex,
+                    point_col: col,
+                    point_row: row,
+                    frameIndex: frame,
+                    page: "command"
+                })
+                setPupilData({ ...pupilData!, contributions: res.point_vals })
+            } catch (err) {
+                console.error("Failed to fetch point data:", err)
+                setPupilData(undefined)
+            }
+        },
+        [loopIndex]
+    )
+
+    const fetchActuatorData = useCallback(
+        async (actuatorIndex: number, frame: number) => {
+            try {
+                const res = await fetchPointStats<DataPoint[], number>({
+                    index: loopIndex,
+                    point_index: actuatorIndex,
+                    page: "command"
+                })
+
+                const contribs = await fetchPointStats<number[][], number>({
+                    index: loopIndex,
+                    point_index: actuatorIndex,
+                    frameIndex: frame,
+                    page: "command"
+                })
+                setActuatorData({ point_vals: res.point_vals, stats: res.stats!, contributions: contribs.point_vals })
+
+            } catch (err) {
+                console.error("Failed to fetch actuator data:", err)
+                setActuatorData(undefined)
+            }
+        },
+        [loopIndex]
+    )
+
+    const fetchActuatorContributions = useCallback(
+        async (actuatorIndex: number, frame: number) => {
+            try {
+                const res = await fetchPointStats<number[][], number>({
+                    index: loopIndex,
+                    point_index: actuatorIndex,
+                    frameIndex: frame,
+                    page: "command"
+                })
+                setActuatorData({ ...actuatorData!, contributions: res.point_vals })
+            } catch (err) {
+                console.error("Failed to fetch actuator data:", err)
+                setActuatorData(undefined)
+            }
+        },
+        [loopIndex]
+    )
     const preloadAround = async (center: number, radius = 5) => {
         const min = Math.max(0, center - radius)
         const max = Math.min(
@@ -144,8 +230,14 @@ export function useCommandBuffer(loopIndex: number) {
         preloadAround,
         meta,
         stats,
-        pointData,
+        pupilData,
+        setPupilData,
         fetchPointData,
-        setPointData
+        fetchPointContributions,
+        actuatorData,
+        setActuatorData,
+        fetchActuatorData,
+        fetchActuatorContributions
+
     }
 }

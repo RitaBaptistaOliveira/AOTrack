@@ -38,9 +38,10 @@ type PointStats = {
 }
 
 export function useSlopeFrameBuffer(wfsIndex: number) {
-  const [buffer, setBuffer] = useState<Map<number, { x: number[][]; y: number[][] }>>(new Map())
   const [meta, setMeta] = useState<FrameMeta | undefined>()
   const [stats, setStats] = useState<DefaultStats | undefined>()
+  const [buffer, setBuffer] = useState<Map<number, { x: number[][]; y: number[][] }>>(new Map())
+
   const [pointData, setPointData] = useState<PointStats | undefined>()
 
   useEffect(() => {
@@ -107,33 +108,63 @@ export function useSlopeFrameBuffer(wfsIndex: number) {
     [wfsIndex]
   )
 
+  const fetchSingleFrameImmediate = useCallback(async (frameIndex: number) => {
+    try {
+      const json = await fetchFrame<{ frameX: number[][]; frameY: number[][] }>({ frameIndex, index: wfsIndex, page: "slope" })
+      const buff = { x: json.frameX, y: json.frameY }
+      setBuffer(prev => {
+        const newBuffer = new Map(prev)
+        newBuffer.set(frameIndex, buff)
+        return newBuffer
+      })
+      return buff
+    } catch (err) {
+      console.error(`Failed to fetch frame ${frameIndex}:`, err)
+      return null
+    }
+  }, [fetchFrame])
+
+  const fetchMultipleFrames = useCallback(async (frameIndices: number[], min: number, max: number) => {
+    const results = await Promise.allSettled(
+      frameIndices.map(i => fetchFrame<{ frameX: number[][], frameY: number[][] }>({ frameIndex: i, index: wfsIndex, page: "pixel" }))
+    )
+
+    setBuffer(prev => {
+      const newBuffer = new Map(prev)
+
+      results.forEach((res, idx) => {
+        if (res.status === "fulfilled") {
+          newBuffer.set(frameIndices[idx], { x: res.value.frameX, y: res.value.frameY })
+        }
+      })
+
+      for (const key of newBuffer.keys()) {
+        if (key < min || key > max) newBuffer.delete(key)
+      }
+      return newBuffer
+    })
+  }, [fetchFrame])
+
   const preloadAround = async (center: number, radius = 5) => {
     const min = Math.max(0, center - radius)
     const max = Math.min(
       center + radius,
       meta && typeof meta.numFrames === "number" ? meta.numFrames - 1 : 1
     )
+    if (!buffer.has(center)) {
+      await fetchSingleFrameImmediate(center)
+    }
 
-    const newBuffer = new Map(buffer)
-
+    const neighbors = []
     for (let frameIndex = min; frameIndex <= max; frameIndex++) {
-
-      if (!buffer.has(frameIndex)) {
-        try {
-          const json = await fetchFrame<{ frameX: number[][]; frameY: number[][] }>({ frameIndex, index: wfsIndex, page: "slope" })
-
-          newBuffer.set(frameIndex, { x: json.frameX, y: json.frameY })
-        } catch (err) {
-          console.error(`Failed to fetch frame ${frameIndex}:`, err)
-        }
+      if (!buffer.has(frameIndex) && frameIndex !== center) {
+        neighbors.push(frameIndex)
       }
     }
 
-    for (const key of newBuffer.keys()) {
-      if (key < min || key > max) newBuffer.delete(key)
+    if (neighbors.length > 0) {
+      fetchMultipleFrames(neighbors, min, max)
     }
-
-    setBuffer(newBuffer)
   }
 
   return {

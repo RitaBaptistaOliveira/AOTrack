@@ -1,6 +1,6 @@
 import { Slider } from "@/components/ui/slider"
 import { Button } from "@/components/ui/button"
-import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight } from "lucide-react"
+import { Play, Pause, SkipBack, SkipForward, ChevronLeft, ChevronRight, RefreshCcw } from "lucide-react"
 import { useState, type ReactElement, type ReactNode } from "react"
 
 /**
@@ -53,12 +53,9 @@ function FrameDisplay({ totalFrames, currentFrame, onChange }: { totalFrames: nu
    * Parses the input value and updates the current frame if valid.
    */
   const handleSubmit = () => {
-    console.log("Submitting frame:", inputValue)
     const num = parseInt(inputValue)
-    console.log("Parsed frame number:", num)
     if (!isNaN(num)) {
       onChange(num)
-      console.log
     }
     setIsEditing(false)
   }
@@ -121,8 +118,14 @@ export default function FrameSlider({ totalFrames, currentFrame, setCurrentFrame
       <div className="flex items-center justify-center gap-2">
 
         {/* Play/Pause Button */}
-        <IconButton onClick={() => setIsPlaying(!isPlaying)}>
-          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        <IconButton onClick={() => {
+          if(currentFrame === totalFrames - 1){
+            setCurrentFrame(0)
+            setIsPlaying(!isPlaying)
+          } else setIsPlaying(!isPlaying)
+        }}>
+          {currentFrame !== totalFrames - 1 ?
+            (isPlaying ? <Pause className="h-4 w-4"/> : <Play className="h-4 w-4" /> ) : <RefreshCcw className="h-4 w-4" />}
         </IconButton>
 
         {/* Start / Previous */}

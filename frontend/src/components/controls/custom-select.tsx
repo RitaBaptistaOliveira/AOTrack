@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input"
 import Portal from "@/components/ui/portal"
 import type { IntervalType } from "@/types/visualization"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from "react"
+import { TooltipTrigger } from "../ui/tooltip"
 
 /**
  * Represents the available option types for the CustomSelect component.
@@ -221,19 +222,22 @@ export default function CustomSelect({ value, onValueChange }: CustomSelectProps
 
     return (
         <div ref={triggerRef}>
-            <button
-                className="h-9 text-xs w-29 border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex items-center justify-between gap-2 rounded-md border bg-transparent p-2 whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-                onClick={() => {
-                    setIsOpen(!isOpen)
-                    setIsDropdownHovered(!isDropdownHovered)
-                    setHoveredOption(currentOption)
-                }}
-            >
-                {currentOption === "percentile"
-                    ? `Percentile: ${percentile}`
-                    : currentOption.charAt(0).toUpperCase() + currentOption.slice(1)}
-                <ChevronDown className={cn("size-4 opacity-50")} />
-            </button>
+            <TooltipTrigger asChild>
+                <button
+                    className="h-9 text-xs w-29 border-input focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 dark:hover:bg-input/50 flex items-center justify-between gap-2 rounded-md border bg-transparent p-2 whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+                    onClick={() => {
+                        setIsOpen(!isOpen)
+                        setIsDropdownHovered(!isDropdownHovered)
+                        setHoveredOption(currentOption)
+                    }}
+                >
+                    {currentOption === "percentile"
+                        ? `Percentile: ${percentile}`
+                        : currentOption.charAt(0).toUpperCase() + currentOption.slice(1)}
+                    <ChevronDown className={cn("size-4 opacity-50")} />
+                </button>
+            </TooltipTrigger>
+
 
             {isOpen && (
                 <Portal>

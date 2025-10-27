@@ -1,25 +1,37 @@
 import DashboardGrid, { GridItem } from '@/components/layout/dashboard-grid/dashboard-grid'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useChartInteraction } from '@/contexts/chart-interactions-context'
 import { useCommandBuffer } from '@/hooks/use-command-buffer'
 import StatTable from '@/components/charts/stat-table'
 import { Card } from '@/components/ui/card'
-import { LineChart, BarChart3 } from "lucide-react"
+import { LineChart as LN, BarChart3 } from "lucide-react"
 import { useAoSession } from '@/contexts/ao-session-context'
 import { fetchTile } from '@/api/fetchTile'
-import Heatmap from '@/components/charts/heatmap-chart'
-import TileHeatmap from '@/components/charts/tile-heatmap-chart'
-import LinesChart from '@/components/charts/line-chart'
-import Histogram from '@/components/charts/hist-chart'
+import FrameView from '@/components/charts/frame-view/FrameView'
+import TimelineView from '@/components/charts/timeline-view/TimelineView'
+import LineChart from '@/components/charts/line-chart/LineChart'
+import Histogram from '@/components/charts/histogram/Histogram'
+import type { Dataset, MultiDataset } from '@/components/charts/common/utils/types'
 
 export default function Commands() {
   const { wfc } = useAoSession()
+  const [datasetsLine, setDatasetsLine] = useState<MultiDataset>([])
+  const [datasetsContrib, setDatasetsContrib] = useState<MultiDataset>([])
+  const [actuatorContrib, setActuatorContrib] = useState<number[][]>([])
   const frameBuffer = useCommandBuffer(wfc)
   const [currentFrame, setCurrentFrame] = useState(0)
+  const selectedState = useRef<"point" | "cell" | null>(null)
   const [selectedCell, setSelectedCell] = useState<{ frame: number, col: number, row: number } | null>(null)
   const [selectedPoint, setSelectedPoint] = useState<{ frame: number, index: number } | null>(null)
   const currentFrameData = frameBuffer.getFrame(currentFrame)
   const { scaleType, intervalType } = useChartInteraction()
+  const [displayFrameData, setDisplayFrameData] = useState<number[][] | null>(null)
+
+  useEffect(() => {
+    if (currentFrameData) {
+      setDisplayFrameData(currentFrameData);
+    }
+  }, [currentFrameData])
 
   const [meta, setMeta] = useState<{
     numFrames: number
@@ -38,56 +50,62 @@ export default function Commands() {
     }
   }, [frameBuffer.meta])
 
-  const handleCellSelect = useCallback(async (selected: { frame: number, col: number; row: number } | null) => {
-    setSelectedCell(selected)
-    if (selected) {
-      const col = selected.col
-      const row = selected.row
-      if (meta && meta.colRowToIndex && meta.colRowToIndex[col]?.[row] !== undefined) {
-        const index = meta.colRowToIndex[col][row]
-        if (index === -1) {
-          console.warn("Invalid mask access at", col, row)
-          return
-        }
-        setSelectedPoint({
-          frame: selected.frame,
-          index: index
-        })
-        await frameBuffer.fetchPointData(index)
-      }
-    } else {
-      setSelectedPoint(null)
-      frameBuffer.setPointData(undefined)
+  const handleSetCurrentFrame = useCallback(async (frame: number) => {
+    if (selectedCell) {
+      setCurrentFrame(frame)
+      setSelectedCell(prev => prev ? { ...prev, frame } : null)
+      await frameBuffer.fetchPointContributions(selectedCell.col, selectedCell.row, frame)
     }
-  }, [meta])
+  }, [])
 
-  const handlePointSelect = useCallback(async (selected: { frame: number, index: number } | null) => {
-    setSelectedPoint(selected)
-    if (selected && meta) {
-      const index = selected.index
-      const frame = selected.frame
-      if (meta.indexToColRow && meta.indexToColRow[index]) {
-        const [col, row] = meta.indexToColRow[index]
-        setCurrentFrame(frame)
-        setSelectedCell({
-          frame: frame,
-          col: col,
-          row: row
-        })
-        await frameBuffer.fetchPointData(index)
-      }
+  const handleCellSelect = useCallback((selected: { frame: number, col: number; row: number } | null) => {
+    if (selected) {
+      selectedState.current = "cell"
     }
     else {
-      setSelectedCell(null)
-      frameBuffer.setPointData(undefined)
+      frameBuffer.setPupilData(undefined)
+      selectedState.current = null
     }
+
+    setSelectedCell(selected)
+    setSelectedPoint(null)
+
   }, [meta])
 
-  const handleFrameChange = useCallback((frame: number) => {
-    setCurrentFrame(frame)
-    setSelectedCell(prev => prev ? { ...prev, frame } : null)
-    setSelectedPoint(prev => prev ? { ...prev, frame } : null)
-  }, [])
+  const handlePointSelect = useCallback((selected: { frame: number, index: number } | null) => {
+    if (selected) {
+      selectedState.current = "point"
+    }
+    else {
+      frameBuffer.setActuatorData(undefined)
+      selectedState.current = null
+
+    }
+    setSelectedPoint(selected)
+    setSelectedCell(null)
+  }, [meta])
+
+  useEffect(() => {
+    const run = async () => {
+      switch (selectedState.current) {
+        case "point":
+          if (selectedPoint) {
+            frameBuffer.setPupilData(undefined)
+            await frameBuffer.fetchActuatorData(selectedPoint.index, selectedPoint.frame)
+          }
+          break
+        case "cell":
+          if (selectedCell) {
+            frameBuffer.setActuatorData(undefined)
+            await frameBuffer.fetchPointData(selectedCell.col, selectedCell.row, selectedCell.frame)
+          }
+          break
+        default:
+          break
+      }
+    }
+    run()
+  }, [selectedCell, selectedPoint])
 
   const handleFetchTile = useCallback(async (frameStart: number, frameEnd: number, indexStart: number, indexEnd: number) => {
     try {
@@ -109,6 +127,45 @@ export default function Commands() {
   }, [])
 
   useEffect(() => {
+    if ((!frameBuffer.pupilData && !frameBuffer.actuatorData)) {
+      setDatasetsLine([])
+      setDatasetsContrib([])
+      setActuatorContrib([])
+      return
+    }
+
+    if (frameBuffer.pupilData && frameBuffer.actuatorData) {
+      return
+    }
+
+    let datasetLine = {
+      pointId: "Point1",
+      dimId: "A",
+      data: [] as { x: number; y: number }[],
+      color: "#10b981"
+    } as Dataset
+
+
+    if (frameBuffer.pupilData) {
+      const datasetContrib = {
+        pointId: "Point1",
+        dimId: "A",
+        data: frameBuffer.pupilData.contributions,
+        color: "#10b981"
+      } as Dataset
+      datasetLine.data = frameBuffer.pupilData.point_vals
+      setDatasetsContrib([datasetContrib])
+      setActuatorContrib([])
+    }
+    else if (frameBuffer.actuatorData) {
+      datasetLine.data = frameBuffer.actuatorData.point_vals
+      setActuatorContrib(frameBuffer.actuatorData.contributions)
+      setDatasetsContrib([])
+    }
+    setDatasetsLine([datasetLine])
+  }, [frameBuffer.pupilData, frameBuffer.actuatorData])
+
+  useEffect(() => {
     frameBuffer.preloadAround(currentFrame, 2)
   }, [currentFrame, scaleType, intervalType])
 
@@ -116,19 +173,19 @@ export default function Commands() {
     <DashboardGrid variant="default">
 
       <GridItem area="a">
-        {(meta?.numCols && meta.numRows) ?
-          <Heatmap
-            data={currentFrameData ? [currentFrameData] : []}
+        {displayFrameData && meta && (meta.numCols && meta.numRows) ?
+          <FrameView
+            data={[displayFrameData]}
             numRows={meta.numRows}
             numCols={meta.numCols}
             numFrames={meta.numFrames}
             minValue={meta.overallMin}
             maxValue={meta.overallMax}
             onCellSelect={handleCellSelect}
-            onFrameChange={handleFrameChange}
+            onFrameChange={handleSetCurrentFrame}
             selectedCell={selectedCell}
             formatHover={(cell) => (
-              <div className="text-xs">
+              <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none text-xs">
                 <div>Col: {cell.col}, Row: {cell.row}</div>
                 <div>Value: {cell.values[0].toPrecision(2)} m</div>
               </div>
@@ -142,7 +199,7 @@ export default function Commands() {
       </GridItem>
       <GridItem area="b">
         {meta &&
-          <TileHeatmap
+          <TimelineView
             numFrames={meta.numFrames}
             numIndexes={meta.numIndices}
             dim={1}
@@ -150,9 +207,10 @@ export default function Commands() {
             maxValue={meta.overallMax}
             onPointSelect={handlePointSelect}
             onFetchTile={handleFetchTile}
+            onFrameChange={() => { }}
             selectedPoint={selectedPoint}
             formatHover={(cell) => (
-              <div className="text-xs">
+              <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none text-xs">
                 <div>Index: {cell.index}</div>
                 <div>Value: {cell.values[0].toPrecision(2)} m</div>
               </div>
@@ -161,24 +219,25 @@ export default function Commands() {
         }
       </GridItem>
 
-      {frameBuffer.pointData ?
-        <GridItem area="c">
-          {frameBuffer.pointData &&
-            <LinesChart
-              data1X={frameBuffer.pointData.point_vals}
-              data1Y={[]}
-              data2X={[]}
-              data2Y={[]}
-              config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
-              config2={undefined}
-            />
-          }
-        </GridItem>
+      {datasetsLine.length > 0 ?
+        (frameBuffer.pupilData ?
+          <GridItem area="c">
+            {frameBuffer.pupilData &&
+              <LineChart datasets={datasetsLine} labels={{ title: "Commands by Frame", x: "Frame", y: "m" }} />
+            }
+          </GridItem>
+          :
+          <GridItem area="c">
+            {frameBuffer.actuatorData &&
+              <LineChart datasets={datasetsLine} labels={{ title: "Actuator Commands by Frame", x: "Frame", y: "m" }} />
+            }
+          </GridItem>
+        )
         :
         <GridItem area="c" className='flex items-center justify-center'>
           <Card className="p-6 text-center w-95 h-9/11">
             <div className="flex justify-center mb-4">
-              <LineChart size={48} />
+              <LN size={48} />
             </div>
             <h3 className="text-lg font-semibold mb-2">Command Motion by Frame</h3>
             <p className="text-foreground mb-4">
@@ -187,41 +246,60 @@ export default function Commands() {
           </Card>
         </GridItem>
       }
-      {
-        frameBuffer.pointData ?
+
+      {(datasetsContrib.length > 0 || actuatorContrib.length > 0) ?
+        (frameBuffer.pupilData ?
           <GridItem area="d">
-            {frameBuffer.pointData && meta && (
-              <Histogram
-                data1X={frameBuffer.pointData.point_vals}
-                data1Y={[]}
-                data2X={[]}
-                data2Y={[]}
-                config1={selectedCell ? { col: selectedCell.col, row: selectedCell.row } : undefined}
-                config2={undefined}
-              />
+            {frameBuffer.pupilData && (
+              <Histogram datasets={datasetsContrib} labels={{ title: "Motion Distribution", x: "m" }} />
             )}
           </GridItem>
           :
-          <GridItem area="d" className='flex items-center justify-center'>
-            <Card className="p-6 text-center w-95 h-9/11">
-              <div className="flex justify-center mb-4">
-                <BarChart3 size={48} />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Motion Distribution</h3>
-              <p className="text-foreground mb-4">
-                Click a <span className="font-semibold">Point</span> to show the histogram
-              </p>
-            </Card>
+          <GridItem area="d">
+            {meta && frameBuffer.actuatorData && (
+              <FrameView
+                data={[actuatorContrib]}
+                numRows={actuatorContrib.length}
+                numCols={actuatorContrib[0].length}
+                numFrames={meta.numFrames}
+                minValue={Math.min(...actuatorContrib.flat())}
+                maxValue={Math.max(...actuatorContrib.flat())}
+                selectedCell={null}
+                onCellSelect={() => { }}
+                onFrameChange={() => { }}
+                formatHover={(cell) => (
+                  <div className="absolute top-2 left-2 bg-black text-white px-2 py-1 rounded text-sm pointer-events-none text-xs">
+                    <div>Col: {cell.col}, Row: {cell.row}</div>
+                    <div>Value: {cell.values[0].toPrecision(2)} m</div>
+                  </div>
+                )}
+                isControlled={false}
+                index={selectedPoint ? selectedPoint.index : 0}
+              />
+            )}
           </GridItem>
+        ) :
+
+        <GridItem area="d" className='flex items-center justify-center'>
+          <Card className="p-6 text-center w-95 h-9/11">
+            <div className="flex justify-center mb-4">
+              <BarChart3 size={48} />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">Motion Distribution</h3>
+            <p className="text-foreground mb-4">
+              Click a <span className="font-semibold">Point</span> to show the histogram
+            </p>
+          </Card>
+        </GridItem>
       }
 
       <GridItem area="e">
         {frameBuffer.stats &&
-          <StatTable data={frameBuffer.stats} selectedPoint={frameBuffer.pointData?.stats} />
+          <StatTable data={frameBuffer.stats} selectedPoint={frameBuffer.pupilData?.stats || frameBuffer.actuatorData?.stats} />
         }
       </GridItem>
 
-    </DashboardGrid>
+    </DashboardGrid >
   )
 }
 
